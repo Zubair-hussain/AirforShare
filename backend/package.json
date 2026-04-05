@@ -1,0 +1,21 @@
+{
+  "name": "airforshare-backend",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "db:create": "wrangler d1 create airforshare-db",
+    "db:migrate": "wrangler d1 execute airforshare-db --file=./schema.sql"
+  },
+  "dependencies": {
+    "hono": "^4.4.0",
+    "@supabase/supabase-js": "^2.39.0",
+    "pako": "^2.1.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20240729.0",
+    "typescript": "^5.0.0",
+    "wrangler": "^3.65.0"
+  }
+}
