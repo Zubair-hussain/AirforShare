@@ -19,7 +19,7 @@ crons = ["*/30 * * * *"]    # Run cleanup every 30 minutes
 MAX_FILE_SIZE = "52428800"              # 50MB in bytes
 COMPRESSION_THRESHOLD = "104857600"     # 100MB in bytes - files larger than this will be compressed
 ROOM_EXPIRY_MINUTES = "30"
-FRONTEND_URL = "http://localhost:3000"  # For development; change to your actual frontend URL for production
+FRONTEND_URL = "https://airfor-share.vercel.app"  # For development; change to your actual frontend URL for production
 
 # Supabase Configuration (optional - for redundancy and hybrid storage)
 # Add these environment variables in your Cloudflare Workers settings dashboard:
