@@ -1,21 +1,28 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation'; // ✅ added
+import { useRouter } from 'next/navigation';
+import dynamic from 'next/dynamic';
 import FileUploader from '../components/FileUploader';
 import TextShare from '../components/TextShare';
+
+// LAN discovery — client only, no SSR
+const LanDiscoveryPanel = dynamic(
+  () => import('../components/LanDiscoveryPanel'),
+  { ssr: false }
+);
 
 type Tab = 'file' | 'text';
 
 export default function HomePage() {
   const [tab, setTab] = useState<Tab>('file');
   const [roomInput, setRoomInput] = useState('');
-  const router = useRouter(); // ✅ added
+  const router = useRouter();
 
   const handleJoin = () => {
     const code = roomInput.replace(/\D/g, '').slice(0, 6);
     if (code.length === 6) {
-      router.push(`/room/${code}`); // ✅ updated (no reload)
+      router.push(`/room/${code}`);
     }
   };
 
@@ -33,6 +40,12 @@ export default function HomePage() {
         </div>
         <p className="tagline">Instant sharing. No account. No trace.</p>
       </header>
+
+      {/* ── LAN Discovery Panel ─────────────────────────────────────── */}
+      {/* Shows automatically when devices on same WiFi have shared files */}
+      <div className="lan-wrap animate-in" style={{ animationDelay: '40ms' }}>
+        <LanDiscoveryPanel />
+      </div>
 
       {/* ── Main card ──────────────────────────────────────────────── */}
       <div className="card main-card animate-in" style={{ animationDelay: '60ms' }}>
@@ -115,8 +128,7 @@ export default function HomePage() {
           margin-bottom: 8px;
         }
         .logo-icon {
-          width: 36px;
-          height: 36px;
+          width: 36px; height: 36px;
           border-radius: 10px;
           background: var(--accent-glow);
           border: 1px solid var(--accent);
@@ -134,6 +146,14 @@ export default function HomePage() {
           font-size: 14px;
           color: var(--text-muted);
         }
+
+        /* LAN panel wrapper — full width, same max-width as card */
+        .lan-wrap {
+          width: 100%;
+          max-width: 500px;
+          margin-bottom: 16px;
+        }
+
         .main-card {
           width: 100%;
           max-width: 500px;
@@ -167,6 +187,7 @@ export default function HomePage() {
           box-shadow: 0 1px 4px rgba(0,0,0,0.4);
         }
         .tab-content { animation: fadeIn 0.25s ease both; }
+
         .join-card {
           width: 100%;
           max-width: 500px;
@@ -200,6 +221,7 @@ export default function HomePage() {
         .join-input:focus { outline: none; border-color: var(--accent); }
         .join-input::placeholder { color: var(--text-subtle); font-size: 14px; letter-spacing: normal; }
         .join-btn { padding: 12px 24px; }
+
         .features {
           display: flex;
           flex-wrap: wrap;

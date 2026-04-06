@@ -3,7 +3,12 @@
 import { useState, useRef, DragEvent, ChangeEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { uploadFile, UploadResult, formatFileSize } from '../lib/api';
-import Turnstile from './Turnstile';
+import dynamic from 'next/dynamic';
+import { getLanIp, getSubnetFromIp } from '../lib/lanDiscovery';
+import { broadcastLocalShare } from '../lib/supabaseRealtime';
+
+// Load Turnstile only on client — never SSR (prevents hydration errors 418/423/425)
+const Turnstile = dynamic(() => import('./Turnstile'), { ssr: false });
 
 const MAX_SIZE = 50 * 1024 * 1024; // 50MB
 
@@ -68,6 +73,24 @@ export default function FileUploader() {
     try {
       const res: UploadResult = await uploadFile(file, setProgress, turnstileToken);
       setUploadResult(res);
+
+      // ── LAN broadcast after upload ──────────────────────────────────
+      const lanIp = await getLanIp();
+      const subnet = lanIp ? getSubnetFromIp(lanIp) : null;
+      const sharePayload = {
+        subnet: subnet || 'unknown',
+        room_code: res.roomCode,
+        share_id: res.shareId,
+        file_name: res.fileName,
+        file_size: res.fileSize,
+        file_size_original: res.fileSizeOriginal,
+        is_compressed: res.isCompressed,
+        file_type: file.type,
+        type: 'file' as const,
+        expires_at: res.expiresAt,
+      };
+      if (subnet) await broadcastLocalShare(sharePayload);
+      try { localStorage.setItem('afs_recent_share', JSON.stringify(sharePayload)); } catch {}
 
       setTimeout(() => {
         router.push(`/room/${res.roomCode}`);
