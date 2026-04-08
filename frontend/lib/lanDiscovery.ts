@@ -1,85 +1,47 @@
 // lib/lanDiscovery.ts
 // ─────────────────────────────────────────────────────────────────────────────
-// Gets the real LAN IP of the browser using WebRTC STUN
-// This bypasses Cloudflare proxy — the browser talks directly to STUN server
-// and reveals its actual local network IP (e.g., 192.168.1.5)
+// Replaced WebRTC STUN with backend-based Public IP hashing.
+// This resolves the issue where modern browsers block local IP leakage via WebRTC,
+// and ensures users on the exact same WiFi (sharing public IP) can auto-discover 
+// each other seamlessly without browser warnings or blocks.
 // ─────────────────────────────────────────────────────────────────────────────
 
+import { getNetworkId } from './api';
+
 /**
- * Get the device's real LAN IP address using WebRTC STUN.
- * Returns null if not on a local network or WebRTC not available.
+ * Get the securely hashed Network ID for the current device's public IP.
+ * Devices sharing a WiFi connection will have identical public IPs, 
+ * and therefore identical Network IDs.
  */
 export async function getLanIp(): Promise<string | null> {
-  return new Promise((resolve) => {
-    try {
-      const pc = new RTCPeerConnection({
-        iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
-      });
-
-      const timeout = setTimeout(() => {
-        pc.close();
-        resolve(null);
-      }, 3000); // 3s timeout
-
-      pc.createDataChannel('');
-      pc.createOffer().then((offer) => pc.setLocalDescription(offer));
-
-      pc.onicecandidate = (e) => {
-        if (!e.candidate) return;
-
-        // Parse IP from ICE candidate string
-        // Format: "candidate:... IP port ..."
-        const ipMatch = e.candidate.candidate.match(
-          /(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})/
-        );
-
-        if (ipMatch) {
-          const ip = ipMatch[1];
-          // Only care about private/LAN IPs
-          if (isPrivateIp(ip)) {
-            clearTimeout(timeout);
-            pc.close();
-            resolve(ip);
-          }
-        }
-      };
-    } catch {
-      resolve(null);
-    }
-  });
+  // We keep the old function name for compatibility, 
+  // but it now returns the "Network ID" rather than a local IP like 192.168.1.5
+  return getNetworkId();
 }
 
 /**
- * Extract subnet from LAN IP (first 3 octets)
- * e.g., "192.168.1.105" → "192.168.1"
+ * Extract subnet from IP (Legacy wrapper)
+ * Since we now use a hashed Network ID, we just return the ID directly
+ * because the entire ID represents the "subnet" (the exact public IP).
  */
 export function getSubnetFromIp(ip: string): string | null {
-  const parts = ip.split('.');
-  if (parts.length !== 4) return null;
-  return parts.slice(0, 3).join('.');
+  return ip || null;
 }
 
 /**
- * Check if IP is a private/LAN address
+ * Legacy check. Since we are using public IPs via the backend now,
+ * we consider any valid Network ID as a "private" match for our purposes.
  */
 export function isPrivateIp(ip: string): boolean {
-  return (
-    /^10\./.test(ip) ||
-    /^172\.(1[6-9]|2[0-9]|3[01])\./.test(ip) ||
-    /^192\.168\./.test(ip) ||
-    /^127\./.test(ip)
-  );
+  return !!ip;
 }
 
 /**
- * Get the LAN subnet string for use as a Supabase Realtime channel name.
- * Returns null if not on a LAN.
- * e.g., "192.168.1" → channel name: "lan-192.168.1"
+ * Get the channel string for use as a Supabase Realtime channel name.
+ * e.g., Network ID "abcd123" → channel name: "lan-abcd123"
  */
 export async function getLanChannel(): Promise<string | null> {
   const ip = await getLanIp();
   if (!ip) return null;
-  const subnet = getSubnetFromIp(ip);
-  if (!subnet) return null;
-  return `lan-${subnet}`;
-}
+  return `lan-${ip}`;
+}

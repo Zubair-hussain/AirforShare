@@ -74,6 +74,34 @@ CREATE INDEX IF NOT EXISTS idx_access_room_code ON access_logs(room_code);
 CREATE INDEX IF NOT EXISTS idx_access_timestamp ON access_logs(accessed_at);
 
 -- ============================================================================
+-- LAN DISCOVERY TABLE (for automatic network device discovery)
+-- ============================================================================
+-- Stores broadcasts from devices on the same WiFi subnet
+-- Other devices on the subnet instantly get notified via Supabase Realtime
+-- This enables "Nearby on your WiFi" feature without manual room entry
+--
+CREATE TABLE IF NOT EXISTS local_broadcasts (
+  id                  TEXT PRIMARY KEY,                    -- Broadcast ID
+  subnet              TEXT NOT NULL,                       -- Network subnet (e.g., "192.168.1")
+  room_code           TEXT NOT NULL,                       -- Room code of the share
+  share_id            TEXT NOT NULL,                       -- Reference to shares.id
+  file_name           TEXT,                                -- File name
+  file_size           INTEGER,                             -- Compressed size (bytes)
+  file_size_original  INTEGER,                             -- Original size before compression
+  file_type           TEXT,                                -- MIME type
+  is_compressed       INTEGER DEFAULT 0,                   -- Boolean: 1=compressed, 0=not
+  type                TEXT NOT NULL CHECK(type IN ('file', 'text')),
+  expires_at          INTEGER NOT NULL,                    -- When to stop showing this broadcast
+  created_at          INTEGER NOT NULL                     -- Broadcast timestamp (milliseconds)
+);
+
+CREATE INDEX IF NOT EXISTS idx_lan_subnet ON local_broadcasts(subnet);
+CREATE INDEX IF NOT EXISTS idx_lan_room_code ON local_broadcasts(room_code);
+CREATE INDEX IF NOT EXISTS idx_lan_expires_at ON local_broadcasts(expires_at);
+CREATE INDEX IF NOT EXISTS idx_lan_created_at ON local_broadcasts(created_at);
+CREATE INDEX IF NOT EXISTS idx_lan_subnet_expires ON local_broadcasts(subnet, expires_at);
+
+-- ============================================================================
 -- VIEWS for convenience
 -- ============================================================================
 

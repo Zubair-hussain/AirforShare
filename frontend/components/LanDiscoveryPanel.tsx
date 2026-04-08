@@ -123,7 +123,7 @@ export default function LanDiscoveryPanel() {
           </div>
           <div>
             <p className="lan-title">Nearby on your WiFi</p>
-            <p className="lan-sub">{lanIp} · {shares.length} file{shares.length !== 1 ? 's' : ''} available</p>
+            <p className="lan-sub">Net ID: {lanIp?.substring(0, 8)} · {shares.length} file{shares.length !== 1 ? 's' : ''} available</p>
           </div>
         </div>
         <div className="live-badge">

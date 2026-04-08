@@ -4,6 +4,24 @@ import { analyzeNetwork } from '../utils/networkDetection';
 
 const room = new Hono<{ Bindings: Env }>();
 
+// GET /room/network-id — Get a secure hash of the user's public IP
+// This is used for "Same WiFi" auto-discovery over the internet.
+room.get('/network-id', async (c) => {
+  const ip = c.req.header('cf-connecting-ip') || c.req.header('x-real-ip') || 'unknown';
+  
+  // We hash the IP so we don't expose sensitive public IPs directly to the client
+  // A daily salt ensures network IDs rotate for privacy
+  const today = new Date().toISOString().split('T')[0];
+  const encoder = new TextEncoder();
+  const data = encoder.encode(ip + (c.env.SUPABASE_ANON_KEY || 'salt') + today);
+  
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  const networkId = hashArray.map(b => b.toString(16).padStart(2, '0')).join('').substring(0, 16);
+
+  return c.json({ networkId });
+});
+
 // GET /room/:roomCode — get share metadata
 // Room code is the ONLY access control required.
 // Network info is returned as metadata for the frontend to use (e.g., show "same WiFi" badge).

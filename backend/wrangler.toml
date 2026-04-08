@@ -1,7 +1,6 @@
 name = "airforshare-backend"
 main = "src/index.ts"
 compatibility_date = "2024-07-01"
-compatibility_flags = ["nodejs_compat"]
 
 [[r2_buckets]]
 binding = "R2"

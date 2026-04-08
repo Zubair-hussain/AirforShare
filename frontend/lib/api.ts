@@ -1,5 +1,18 @@
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
+// ── Get Network ID for Same-WiFi Discovery ────────────────────────────
+export async function getNetworkId(): Promise<string | null> {
+  try {
+    const res = await fetch(`${API_URL}/room/network-id`);
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.networkId || null;
+  } catch (err) {
+    console.error('Failed to fetch network ID:', err);
+    return null;
+  }
+}
+
 export interface ShareInfo {
   roomCode: string;
   type: 'file' | 'text';

@@ -74,6 +74,46 @@ CREATE INDEX idx_access_room_code ON access_logs(room_code);
 CREATE INDEX idx_access_timestamp ON access_logs(accessed_at);
 
 -- ============================================================================
+-- LAN DISCOVERY TABLE (for automatic device discovery on local networks)
+-- ============================================================================
+-- Stores broadcasts from devices on the same WiFi subnet
+-- Used by Supabase Realtime to alert other devices on the network
+CREATE TABLE IF NOT EXISTS local_broadcasts (
+  id                  TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+  
+  -- Network subnet (e.g., "192.168.1")
+  subnet              TEXT NOT NULL,
+  
+  -- Share information
+  room_code           TEXT NOT NULL,
+  share_id            TEXT NOT NULL,
+  
+  -- File details
+  file_name           TEXT,
+  file_size           BIGINT,
+  file_size_original  BIGINT,
+  file_type           TEXT,
+  is_compressed       BOOLEAN DEFAULT false,
+  
+  -- Share type ('file' or 'text')
+  type                TEXT NOT NULL CHECK(type IN ('file', 'text')),
+  
+  -- Expiry
+  expires_at          BIGINT NOT NULL,
+  
+  -- Timestamps
+  created_at          BIGINT NOT NULL,
+  created_at_timestamp TIMESTAMP DEFAULT now()
+);
+
+-- Indexes for fast queries
+CREATE INDEX idx_lan_subnet ON local_broadcasts(subnet);
+CREATE INDEX idx_lan_room_code ON local_broadcasts(room_code);
+CREATE INDEX idx_lan_expires_at ON local_broadcasts(expires_at);
+CREATE INDEX idx_lan_created_at ON local_broadcasts(created_at);
+CREATE INDEX idx_lan_subnet_expires ON local_broadcasts(subnet, expires_at);
+
+-- ============================================================================
 -- STORAGE BUCKET for files (optional)
 -- ============================================================================
 -- Do NOT run this in SQL Editor - instead:
