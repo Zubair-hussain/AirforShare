@@ -17,8 +17,9 @@ export default function LanDiscoveryPanel() {
   const [subnet, setSubnet] = useState<string | null>(null);
   const [scanning, setScanning] = useState(true);
   const [lanIp, setLanIp] = useState<string | null>(null);
+  const [expandedText, setExpandedText] = useState<Record<string, string>>({});
+  const [expanding, setExpanding] = useState<string | null>(null);
   const channelRef = useRef<RealtimeChannel | null>(null);
-  const router = useRouter();
 
   useEffect(() => {
     let cancelled = false;
@@ -90,14 +91,34 @@ export default function LanDiscoveryPanel() {
     } catch {}
   }, []);
 
-  const openShare = (roomCode: string) => {
-    router.push(`/room/${roomCode}`);
+  const handleShareClick = async (share: LocalShare) => {
+    if (share.type === 'file') {
+      const { getDownloadUrl } = await import('../lib/api');
+      window.location.href = getDownloadUrl(share.room_code);
+      return;
+    }
+
+    if (share.type === 'text') {
+      if (expandedText[share.room_code] !== undefined) {
+        const updated = { ...expandedText };
+        delete updated[share.room_code];
+        setExpandedText(updated);
+        return;
+      }
+      setExpanding(share.room_code);
+      try {
+        const { getRoomInfo } = await import('../lib/api');
+        const info = await getRoomInfo(share.room_code);
+        setExpandedText((prev) => ({ ...prev, [share.room_code]: info.content || '' }));
+      } catch (err) {
+        setExpandedText((prev) => ({ ...prev, [share.room_code]: 'Failed to load text content.' }));
+      } finally {
+        setExpanding(null);
+      }
+    }
   };
 
-  // Don't show anything if:
-  // - Still scanning
-  // - Not on a LAN (no subnet detected)
-  // - No shares found
+  // Don't show anything if scanning or no subnet or no shares found
   if (scanning || !subnet || shares.length === 0) {
     if (scanning) {
       return (
@@ -109,42 +130,7 @@ export default function LanDiscoveryPanel() {
         </div>
       );
     }
-    // FIX Hydration Error 418/425: Never return null from a dynamic component with ssr: false
     return <div style={{ display: 'none' }} />;
-  }
-
-  // AUTO-REDIRECT LOGIC: The "Twist"
-  // If there are shares, automatically redirect to the most recent one!
-  if (shares.length > 0) {
-    const latestShare = shares[0];
-    
-    // Only auto-redirect once per browser session so the user isn't trapped in a loop
-    // if they click "Home" or "New Share". Also check if they created it locally.
-    const hasRedirected = typeof sessionStorage !== 'undefined' && sessionStorage.getItem('afs_auto_redirected');
-    let isUploader = false;
-    try {
-      const stored = localStorage.getItem('afs_recent_share');
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        if (parsed.room_code === latestShare.room_code) isUploader = true;
-      }
-    } catch {}
-
-    if (!hasRedirected && !isUploader) {
-      if (typeof sessionStorage !== 'undefined') {
-        sessionStorage.setItem('afs_auto_redirected', 'true');
-      }
-      // Instantly push them to the room!
-      router.push(`/room/${latestShare.room_code}`);
-      return (
-        <div className="lan-scanning">
-          <span className="scan-dot" />
-          <span className="scan-dot" style={{ animationDelay: '0.2s' }} />
-          <span className="scan-dot" style={{ animationDelay: '0.4s' }} />
-          <span>Opening active share...</span>
-        </div>
-      );
-    }
   }
 
   return (
@@ -173,31 +159,55 @@ export default function LanDiscoveryPanel() {
       {/* Share list */}
       <div className="lan-list">
         {shares.map((share) => (
-          <button
-            key={share.room_code}
-            className="lan-share-item"
-            onClick={() => openShare(share.room_code)}
-          >
-            <div className="lan-file-icon">
-              <FileTypeIcon type={share.file_type || ''} />
-            </div>
-            <div className="lan-file-info">
-              <p className="lan-file-name">{share.file_name || 'Shared text'}</p>
-              <p className="lan-file-meta">
-                {share.file_size ? formatFileSize(share.file_size) : ''}
-                {share.is_compressed && share.file_size_original
-                  ? ` · ${((1 - share.file_size! / share.file_size_original) * 100).toFixed(0)}% smaller`
-                  : ''}
-                {' · '}
-                <ExpiryLabel expiresAt={share.expires_at} />
-              </p>
-            </div>
-            <div className="lan-arrow">
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                <path d="M3 7h8M7 3l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            </div>
-          </button>
+          <div key={share.room_code} className="lan-share-card">
+            <button
+              className="lan-share-item"
+              onClick={() => handleShareClick(share)}
+              disabled={expanding === share.room_code}
+            >
+              <div className="lan-file-icon">
+                <FileTypeIcon type={share.file_type || ''} />
+              </div>
+              <div className="lan-file-info">
+                <p className="lan-file-name">{share.file_name || 'Shared text'}</p>
+                <p className="lan-file-meta">
+                  {share.file_size ? formatFileSize(share.file_size) : ''}
+                  {share.is_compressed && share.file_size_original
+                    ? ` · ${((1 - share.file_size! / share.file_size_original) * 100).toFixed(0)}% smaller`
+                    : ''}
+                  {' · '}
+                  <ExpiryLabel expiresAt={share.expires_at} />
+                </p>
+              </div>
+              <div className="lan-arrow">
+                {expanding === share.room_code ? (
+                  <span className="spinner-small" />
+                ) : share.type === 'file' ? (
+                  <div className="dl-icon">
+                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                      <path d="M7 1v9M3 7l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  </div>
+                ) : (
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ transform: expandedText[share.room_code] !== undefined ? 'rotate(90deg)' : 'none', transition: 'transform 0.2s' }}>
+                    <path d="M3 7h8M7 3l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                )}
+              </div>
+            </button>
+            {expandedText[share.room_code] !== undefined && (
+              <div className="lan-expanded-text-wrap animate-in">
+                <pre className="lan-expanded-text">{expandedText[share.room_code]}</pre>
+                <button
+                  className="btn-ghost"
+                  onClick={() => navigator.clipboard.writeText(expandedText[share.room_code])}
+                  style={{ width: '100%', marginTop: 8 }}
+                >
+                  Copy Text
+                </button>
+              </div>
+            )}
+          </div>
         ))}
       </div>
 
@@ -293,6 +303,13 @@ export default function LanDiscoveryPanel() {
           flex-direction: column;
         }
 
+        .lan-share-card {
+          border-bottom: 1px solid var(--border);
+        }
+        .lan-share-card:last-child {
+          border-bottom: none;
+        }
+
         .lan-share-item {
           display: flex;
           align-items: center;
@@ -302,12 +319,11 @@ export default function LanDiscoveryPanel() {
           text-align: left;
           background: transparent;
           border: none;
-          border-bottom: 1px solid var(--border);
           cursor: pointer;
           transition: background var(--transition);
         }
-        .lan-share-item:last-child { border-bottom: none; }
-        .lan-share-item:hover { background: var(--surface); }
+        .lan-share-item:hover:not(:disabled) { background: var(--surface); }
+        .lan-share-item:disabled { opacity: 0.7; cursor: wait; }
 
         .lan-file-icon { flex-shrink: 0; }
         .lan-file-info { flex: 1; min-width: 0; }
@@ -332,10 +348,35 @@ export default function LanDiscoveryPanel() {
           color: var(--text-muted);
           flex-shrink: 0;
           transition: transform var(--transition), color var(--transition);
+          display: flex; align-items: center; justify-content: center;
         }
         .lan-share-item:hover .lan-arrow {
-          transform: translateX(3px);
           color: var(--accent);
+        }
+        
+        .dl-icon {
+          display: flex; align-items: center; justify-content: center;
+          width: 24px; height: 24px; border-radius: 50%;
+          background: rgba(99, 102, 241, 0.1); color: var(--accent);
+        }
+
+        .spinner-small {
+          width: 14px; height: 14px; border-radius: 50%;
+          border: 2px solid var(--border); border-top-color: var(--accent);
+          animation: spin 0.6s linear infinite;
+        }
+
+        .lan-expanded-text-wrap {
+          padding: 0 16px 16px;
+          background: rgba(99, 102, 241, 0.02);
+        }
+        .lan-expanded-text {
+          font-family: 'JetBrains Mono', monospace;
+          font-size: 12px; color: var(--text);
+          background: var(--surface); border: 1px solid var(--border);
+          border-radius: var(--radius-sm); padding: 12px;
+          white-space: pre-wrap; word-break: break-word;
+          margin: 0; max-height: 200px; overflow-y: auto;
         }
       `}</style>
     </div>

@@ -91,10 +91,6 @@ export default function FileUploader() {
       };
       if (subnet) await broadcastLocalShare(sharePayload);
       try { localStorage.setItem('afs_recent_share', JSON.stringify(sharePayload)); } catch {}
-
-      setTimeout(() => {
-        router.push(`/room/${res.roomCode}`);
-      }, 800);
     } catch (err: any) {
       setError(err.message || 'Upload failed');
       setUploading(false);
@@ -191,15 +187,20 @@ export default function FileUploader() {
 
         {/* Upload result flash */}
         {uploadResult && (
-          <div className="upload-success">
-            <span className="success-check">✓</span>
-            <span>
-              Uploaded
-              {uploadResult.isCompressed && uploadResult.compressionRatio
-                ? ` · compressed ${uploadResult.compressionRatio} smaller`
-                : ''}
-              {uploadResult.isLocalNetwork ? ' · local network' : ''}
-            </span>
+          <div className="upload-success-panel animate-in">
+            <div className="success-icon">✓</div>
+            <p className="success-title">Shared successfully!</p>
+            <p className="success-sub">
+              Your file is now available on your WiFi network.
+            </p>
+            <div className="room-code-box">
+              <span className="room-code-label">Remote Share Code</span>
+              <span className="room-code-val mono">{uploadResult.roomCode}</span>
+            </div>
+            
+            <button className="btn-ghost" onClick={reset} style={{ marginTop: 16, width: '100%' }}>
+              Upload another file
+            </button>
           </div>
         )}
 
@@ -368,15 +369,30 @@ function FileUploaderStyle() {
       }
 
       /* Upload success flash */
-      .upload-success {
-        display: flex; align-items: center; gap: 8px;
-        font-size: 13px; font-weight: 600; color: #34d399;
-        padding: 10px 14px;
-        background: rgba(52,211,153,0.08);
-        border: 1px solid rgba(52,211,153,0.25);
-        border-radius: var(--radius-sm);
+      .upload-success-panel {
+        display: flex; flex-direction: column; align-items: center; gap: 8px;
+        padding: 32px 20px; text-align: center;
+        background: var(--surface2);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
       }
-      .success-check { font-size: 16px; }
+      .success-icon {
+        width: 48px; height: 48px; border-radius: 50%;
+        background: rgba(52,211,153,0.15); color: #34d399;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 24px; margin-bottom: 8px;
+      }
+      .success-title { font-size: 18px; font-weight: 700; color: var(--text); margin: 0; }
+      .success-sub { font-size: 14px; color: var(--text-muted); margin: 0 0 16px; }
+      
+      .room-code-box {
+        display: flex; flex-direction: column; align-items: center; gap: 4px;
+        padding: 12px 24px;
+        background: var(--surface); border: 1px dashed var(--border-hover);
+        border-radius: var(--radius-sm); width: 100%;
+      }
+      .room-code-label { font-size: 11px; font-weight: 600; text-transform: uppercase; color: var(--text-muted); letter-spacing: 0.05em; }
+      .room-code-val { font-size: 28px; font-weight: 800; color: var(--accent); letter-spacing: 0.15em; }
 
       .error-msg {
         font-size: 13px; color: var(--danger);
