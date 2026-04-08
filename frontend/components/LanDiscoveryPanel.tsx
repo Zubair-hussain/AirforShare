@@ -99,14 +99,52 @@ export default function LanDiscoveryPanel() {
   // - Not on a LAN (no subnet detected)
   // - No shares found
   if (scanning || !subnet || shares.length === 0) {
-    return scanning ? (
-      <div className="lan-scanning">
-        <span className="scan-dot" />
-        <span className="scan-dot" style={{ animationDelay: '0.2s' }} />
-        <span className="scan-dot" style={{ animationDelay: '0.4s' }} />
-        <span>Scanning nearby devices...</span>
-      </div>
-    ) : null;
+    if (scanning) {
+      return (
+        <div className="lan-scanning">
+          <span className="scan-dot" />
+          <span className="scan-dot" style={{ animationDelay: '0.2s' }} />
+          <span className="scan-dot" style={{ animationDelay: '0.4s' }} />
+          <span>Scanning nearby devices...</span>
+        </div>
+      );
+    }
+    // FIX Hydration Error 418/425: Never return null from a dynamic component with ssr: false
+    return <div style={{ display: 'none' }} />;
+  }
+
+  // AUTO-REDIRECT LOGIC: The "Twist"
+  // If there are shares, automatically redirect to the most recent one!
+  if (shares.length > 0) {
+    const latestShare = shares[0];
+    
+    // Only auto-redirect once per browser session so the user isn't trapped in a loop
+    // if they click "Home" or "New Share". Also check if they created it locally.
+    const hasRedirected = typeof sessionStorage !== 'undefined' && sessionStorage.getItem('afs_auto_redirected');
+    let isUploader = false;
+    try {
+      const stored = localStorage.getItem('afs_recent_share');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (parsed.room_code === latestShare.room_code) isUploader = true;
+      }
+    } catch {}
+
+    if (!hasRedirected && !isUploader) {
+      if (typeof sessionStorage !== 'undefined') {
+        sessionStorage.setItem('afs_auto_redirected', 'true');
+      }
+      // Instantly push them to the room!
+      router.push(`/room/${latestShare.room_code}`);
+      return (
+        <div className="lan-scanning">
+          <span className="scan-dot" />
+          <span className="scan-dot" style={{ animationDelay: '0.2s' }} />
+          <span className="scan-dot" style={{ animationDelay: '0.4s' }} />
+          <span>Opening active share...</span>
+        </div>
+      );
+    }
   }
 
   return (
