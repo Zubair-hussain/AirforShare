@@ -21,26 +21,19 @@ export default function TextShare() {
     try {
       const res = await shareText(content.trim());
 
-      // ── LAN broadcast after upload ──────────────────────────────────
+      // ── LOCAL STORAGE FALLBACK ──────────────────────────────────────
       try {
-        const { getLanIp, getSubnetFromIp } = await import('../lib/lanDiscovery');
-        const { broadcastLocalShare } = await import('../lib/supabaseRealtime');
-        const lanIp = await getLanIp();
-        const subnet = lanIp ? getSubnetFromIp(lanIp) : null;
-        if (subnet) {
-          const sharePayload = {
-            subnet: subnet || 'unknown',
-            room_code: res.roomCode,
-            share_id: res.shareId,
-            file_type: 'text/plain',
-            type: 'text' as const,
-            expires_at: res.expiresAt,
-          };
-          await broadcastLocalShare(sharePayload);
-          try { localStorage.setItem('afs_recent_share', JSON.stringify(sharePayload)); } catch {}
-        }
+        const sharePayload = {
+          subnet: 'native',
+          room_code: res.roomCode,
+          share_id: res.shareId,
+          file_type: 'text/plain',
+          type: 'text' as const,
+          expires_at: res.expiresAt,
+        };
+        localStorage.setItem('afs_recent_share', JSON.stringify(sharePayload));
       } catch (e) {
-        console.error('Text broadcast skipped', e);
+        console.error('Local fallback skipped', e);
       }
 
       // 🔥 AUTO REDIRECT (REMOVED)

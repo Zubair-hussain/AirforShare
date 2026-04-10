@@ -13,6 +13,19 @@ export async function getNetworkId(): Promise<string | null> {
   }
 }
 
+// ── Fetch all active shares for a Same-WiFi Network ID ───────────────
+export async function fetchNetworkShares(networkId: string): Promise<any[]> {
+  try {
+    const res = await fetch(`${API_URL}/room/network/${networkId}`);
+    if (!res.ok) return [];
+    const data = await res.json();
+    return Array.isArray(data) ? data : [];
+  } catch (err) {
+    console.error('Failed to fetch network shares:', err);
+    return [];
+  }
+}
+
 export interface ShareInfo {
   roomCode: string;
   type: 'file' | 'text';

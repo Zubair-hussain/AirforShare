@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { Env, Share } from '../types';
 import { generateId, generateRoomCode } from '../utils/roomCode';
 import { compressData, shouldCompress } from '../utils/compression';
-import { analyzeNetwork } from '../utils/networkDetection';
+import { analyzeNetwork, getNetworkId } from '../utils/networkDetection';
 import { initializeSupabase, storeShareMetadataSupabase } from '../utils/supabase';
 
 const upload = new Hono<{ Bindings: Env }>();
@@ -99,6 +99,36 @@ upload.post('/', async (c) => {
         networkPrivate ? 1 : 0  // saved as info, not enforced as blocker
       )
       .run();
+
+    // ── NATIVE LAN DISCOVERY ──────────────────────────────────────────
+    // Insert into local_broadcasts table so devices on same public IP can discover it
+    const networkId = await getNetworkId(c.req.raw.headers, c.env);
+    
+    try {
+      await c.env.DB.prepare(`
+        INSERT INTO local_broadcasts (
+          id, subnet, room_code, share_id, file_name,
+          file_size, file_size_original, file_type,
+          is_compressed, type, expires_at, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'file', ?, ?)
+      `)
+        .bind(
+          crypto.randomUUID ? crypto.randomUUID() : id + '-bc',
+          networkId,
+          roomCode,
+          id,
+          file.name,
+          fileSize,
+          fileSizeOriginal,
+          file.type || '',
+          isCompressed ? 1 : 0,
+          expiresAt,
+          now
+        )
+        .run();
+    } catch (e) {
+      console.error('Failed to insert local broadcast:', e);
+    }
 
     // Optional: Also store in Supabase for redundancy
     const supabase = initializeSupabase(c.env);

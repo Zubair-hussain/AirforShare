@@ -1,25 +1,41 @@
 import { Hono } from 'hono';
 import { Env, Share } from '../types';
-import { analyzeNetwork } from '../utils/networkDetection';
+import { analyzeNetwork, getNetworkId } from '../utils/networkDetection';
 
 const room = new Hono<{ Bindings: Env }>();
 
 // GET /room/network-id — Get a secure hash of the user's public IP
 // This is used for "Same WiFi" auto-discovery over the internet.
 room.get('/network-id', async (c) => {
-  const ip = c.req.header('cf-connecting-ip') || c.req.header('x-real-ip') || 'unknown';
-  
-  // We hash the IP so we don't expose sensitive public IPs directly to the client
-  // A daily salt ensures network IDs rotate for privacy
-  const today = new Date().toISOString().split('T')[0];
-  const encoder = new TextEncoder();
-  const data = encoder.encode(ip + (c.env.SUPABASE_ANON_KEY || 'salt') + today);
-  
-  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  const networkId = hashArray.map(b => b.toString(16).padStart(2, '0')).join('').substring(0, 16);
-
+  const networkId = await getNetworkId(c.req.raw.headers, c.env);
   return c.json({ networkId });
+});
+
+// GET /room/network/:networkId — discover shares on same public IP network 
+room.get('/network/:networkId', async (c) => {
+  const { networkId } = c.req.param();
+  const actualNetworkId = await getNetworkId(c.req.raw.headers, c.env);
+  
+  // Optionally verify that the requester is on the requested network
+  if (networkId !== actualNetworkId) {
+    return c.json({ error: 'Network ID mismatch' }, 403);
+  }
+
+  // Get active local broadcasts for this subnet
+  try {
+    const { results } = await c.env.DB.prepare(
+      'SELECT * FROM local_broadcasts WHERE subnet = ? AND expires_at > ? ORDER BY created_at DESC LIMIT 20'
+    )
+      .bind(networkId, Date.now())
+      .all();
+      
+    // Transform rows slightly if needed, or just return as is
+    return c.json(results || []);
+  } catch (err: any) {
+    // If table doesn't exist yet or similar error
+    console.error('Discover network shares error:', err);
+    return c.json([], 200); 
+  }
 });
 
 // GET /room/:roomCode — get share metadata

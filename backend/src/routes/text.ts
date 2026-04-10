@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { Env } from '../types';
-import { analyzeNetwork } from '../utils/networkDetection';
+import { analyzeNetwork, getNetworkId } from '../utils/networkDetection';
 import { initializeSupabase, storeShareMetadataSupabase } from '../utils/supabase';
 
 const text = new Hono<{ Bindings: Env }>();
@@ -67,7 +67,31 @@ text.post('/', async (c) => {
       .bind(id, roomCode, trimmed, expiresAt, now, networkPrivate ? 1 : 0)
       .run();
 
+    // ── NATIVE LAN DISCOVERY ──────────────────────────────────────────
+    const networkId = await getNetworkId(c.req.raw.headers, c.env);
+    
+    try {
+      await c.env.DB.prepare(`
+        INSERT INTO local_broadcasts (
+          id, subnet, room_code, share_id,
+          type, expires_at, created_at
+        ) VALUES (?, ?, ?, ?, 'text', ?, ?)
+      `)
+        .bind(
+          crypto.randomUUID ? crypto.randomUUID() : id + '-bc',
+          networkId,
+          roomCode,
+          id,
+          expiresAt,
+          now
+        )
+        .run();
+    } catch (e) {
+      console.error('Failed to insert local text broadcast:', e);
+    }
+
     // Optional: Also store in Supabase for redundancy
+
     const supabase = initializeSupabase(c.env);
 
     if (supabase) {

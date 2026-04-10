@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation';
 import { uploadFile, UploadResult, formatFileSize } from '../lib/api';
 import dynamic from 'next/dynamic';
 import { getLanIp, getSubnetFromIp } from '../lib/lanDiscovery';
-import { broadcastLocalShare } from '../lib/supabaseRealtime';
 
 // Load Turnstile only on client — never SSR (prevents hydration errors 418/423/425)
 const Turnstile = dynamic(() => import('./Turnstile'), { ssr: false });
@@ -74,11 +73,9 @@ export default function FileUploader() {
       const res: UploadResult = await uploadFile(file, setProgress, turnstileToken);
       setUploadResult(res);
 
-      // ── LAN broadcast after upload ──────────────────────────────────
-      const lanIp = await getLanIp();
-      const subnet = lanIp ? getSubnetFromIp(lanIp) : null;
+      // ── LOCAL STORAGE FALLBACK ──────────────────────────────────────
       const sharePayload = {
-        subnet: subnet || 'unknown',
+        subnet: 'native',
         room_code: res.roomCode,
         share_id: res.shareId,
         file_name: res.fileName,
@@ -89,7 +86,6 @@ export default function FileUploader() {
         type: 'file' as const,
         expires_at: res.expiresAt,
       };
-      if (subnet) await broadcastLocalShare(sharePayload);
       try { localStorage.setItem('afs_recent_share', JSON.stringify(sharePayload)); } catch {}
     } catch (err: any) {
       setError(err.message || 'Upload failed');

@@ -54,7 +54,8 @@ const nextConfig = {
               // Fonts
               "font-src 'self' https://fonts.gstatic.com",
               // Connect to backend API + Cloudflare analytics beacon
-              `connect-src 'self' ${process.env.NEXT_PUBLIC_API_URL || ''} https://cloudflareinsights.com`,
+              // Added 127.0.0.1:8787 and 127.0.0.1:8788 for local development reliability
+              `connect-src 'self' ${process.env.NEXT_PUBLIC_API_URL || ''} http://127.0.0.1:8787 http://127.0.0.1:8788 http://localhost:8787 http://localhost:8788 https://cloudflareinsights.com`,
               // Images from same origin + data URIs
               "img-src 'self' data: blob:",
             ].join('; '),

@@ -1,5 +1,4 @@
-import { NetworkInfo } from '../types';
-
+import { Env, NetworkInfo } from '../types';
 /**
  * Extract user's IP address from request headers
  * Handles Cloudflare Workers, ngrok, and direct connections
@@ -92,4 +91,19 @@ export function sameLocalNetwork(ip1: string, ip2: string): boolean {
   const subnet2 = getSubnet(ip2);
 
   return subnet1 !== null && subnet1 === subnet2;
+}
+
+/**
+ * Get a secure hash of the user's public IP
+ * This is used for "Same WiFi" auto-discovery over the internet.
+ */
+export async function getNetworkId(headers: Headers, env: Env): Promise<string> {
+  const ip = getUserIp(headers);
+  const today = new Date().toISOString().split('T')[0];
+  const encoder = new TextEncoder();
+  const data = encoder.encode(ip + (env.SUPABASE_ANON_KEY || 'salt') + today);
+  
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('').substring(0, 16);
 }

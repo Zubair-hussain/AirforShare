@@ -3,9 +3,9 @@
 import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { getLanIp, getSubnetFromIp } from '../lib/lanDiscovery';
+import { fetchNetworkShares } from '../lib/api';
 import {
   subscribeLanShares,
-  fetchExistingLanShares,
   unsubscribeLanShares,
   LocalShare,
 } from '../lib/supabaseRealtime';
@@ -46,17 +46,27 @@ export default function LanDiscoveryPanel() {
       setLanIp(ip);
       setSubnet(sub);
 
-      // Step 2: Fetch existing shares on this subnet (late joiners)
-      const existing = await fetchExistingLanShares(sub);
-      if (!cancelled) {
-        setShares(existing);
-      }
+      // Step 2: Fetch existing shares from native D1 backend
+      const fetchShares = async () => {
+        try {
+          const validShares = (await fetchNetworkShares(sub)).filter(
+            (s: any) => Date.now() < s.expires_at
+          );
+          if (!cancelled) setShares(validShares);
+        } catch (e) {
+          console.error("Poll failed:", e);
+        }
+      };
 
-      // Step 3: Subscribe to realtime new shares on this subnet
+      await fetchShares();
+
+      // Native backend polling loop (every 5 seconds) as primary mechanism
+      const pollInterval = setInterval(fetchShares, 5000);
+
+      // Step 3: Subscribe to realtime new shares for instant updates (graceful fallback)
       channelRef.current = subscribeLanShares(sub, (newShare) => {
         if (!cancelled) {
           setShares((prev) => {
-            // Avoid duplicates
             if (prev.find((s) => s.room_code === newShare.room_code)) return prev;
             return [newShare, ...prev];
           });
@@ -64,13 +74,15 @@ export default function LanDiscoveryPanel() {
       });
 
       setScanning(false);
+      return () => clearInterval(pollInterval);
     }
 
-    init();
+    const cleanupPoll = init();
 
     return () => {
       cancelled = true;
       unsubscribeLanShares(channelRef.current);
+      cleanupPoll.then(cleanup => cleanup && cleanup());
     };
   }, []);
 
