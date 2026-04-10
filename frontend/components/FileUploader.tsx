@@ -1,10 +1,8 @@
 'use client';
 
 import { useState, useRef, DragEvent, ChangeEvent } from 'react';
-import { useRouter } from 'next/navigation';
 import { uploadFile, UploadResult, formatFileSize } from '../lib/api';
 import dynamic from 'next/dynamic';
-import { getLanIp, getSubnetFromIp } from '../lib/lanDiscovery';
 
 // Load Turnstile only on client — never SSR (prevents hydration errors 418/423/425)
 const Turnstile = dynamic(() => import('./Turnstile'), { ssr: false });
@@ -27,7 +25,6 @@ export default function FileUploader() {
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   const [turnstileExpired, setTurnstileExpired] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
-  const router = useRouter();
 
   const handleDrag = (e: DragEvent) => {
     e.preventDefault();
@@ -146,16 +143,16 @@ export default function FileUploader() {
           ) : (
             <div className="drop-idle">
               <div className="drop-icon">
-                <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+                <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
                   <path
-                    d="M16 4v16M10 10l6-6 6 6"
+                    d="M14 4v14M8 10l6-6 6 6"
                     stroke="var(--accent)"
-                    strokeWidth="2"
+                    strokeWidth="2.5"
                     strokeLinecap="round"
                     strokeLinejoin="round"
                   />
                   <path
-                    d="M6 22v2a2 2 0 002 2h16a2 2 0 002-2v-2"
+                    d="M5 21v1a2 2 0 002 2h14a2 2 0 002-2v-1"
                     stroke="currentColor"
                     strokeWidth="2"
                     strokeLinecap="round"
@@ -185,17 +182,14 @@ export default function FileUploader() {
         {uploadResult && (
           <div className="upload-success-panel animate-in">
             <div className="success-icon">✓</div>
-            <p className="success-title">Shared successfully!</p>
+            <p className="success-title">File shared!</p>
             <p className="success-sub">
-              Your file is now available on your WiFi network.
+              <strong style={{ color: 'var(--accent)' }}>{uploadResult.fileName}</strong><br/>
+              is now visible to everyone on your WiFi.<br/>
+              They'll see it automatically — no code needed.
             </p>
-            <div className="room-code-box">
-              <span className="room-code-label">Remote Share Code</span>
-              <span className="room-code-val mono">{uploadResult.roomCode}</span>
-            </div>
-            
             <button className="btn-ghost" onClick={reset} style={{ marginTop: 16, width: '100%' }}>
-              Upload another file
+              Share another file
             </button>
           </div>
         )}
@@ -204,7 +198,6 @@ export default function FileUploader() {
         {error && <p className="error-msg">{error}</p>}
 
         {/* ── Cloudflare Turnstile ── */}
-        {/* Show once a file is selected and we haven't uploaded yet */}
         {file && !uploading && !uploadResult && (
           <div className="turnstile-wrap">
             <p className="turnstile-label">
@@ -217,7 +210,7 @@ export default function FileUploader() {
                   strokeLinejoin="round"
                 />
               </svg>
-              Security check — powered by Cloudflare
+              Security check
             </p>
             <Turnstile
               siteKey={TURNSTILE_SITE_KEY}
@@ -251,22 +244,16 @@ export default function FileUploader() {
             onClick={doUpload}
             disabled={!canUpload}
           >
-            <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
               <path
-                d="M9 2v10M4 7l5-5 5 5"
+                d="M8 2v9M4 7l4-4 4 4"
                 stroke="currentColor"
                 strokeWidth="2"
                 strokeLinecap="round"
                 strokeLinejoin="round"
               />
-              <path
-                d="M3 14v1a1 1 0 001 1h10a1 1 0 001-1v-1"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-              />
             </svg>
-            {turnstileToken ? 'Upload & Get Code' : 'Complete check above first'}
+            {turnstileToken ? 'Drop File' : 'Complete security check'}
           </button>
         )}
       </div>
@@ -279,40 +266,40 @@ export default function FileUploader() {
 function FileUploaderStyle() {
   return (
     <style>{`
-      .section { display: flex; flex-direction: column; gap: 16px; }
+      .section { display: flex; flex-direction: column; gap: 14px; }
       .dropzone {
         display: block;
-        border: 1.5px dashed var(--border-hover);
+        border: 1.5px dashed rgba(255,255,255,0.1);
         border-radius: var(--radius);
-        padding: 48px 24px;
+        padding: 44px 24px;
         cursor: pointer;
         transition: all var(--transition);
         text-align: center;
       }
       .dropzone:hover, .dropzone.dragging {
         border-color: var(--accent);
-        background: var(--accent-glow);
+        background: rgba(0,229,160,0.03);
       }
       .dropzone.has-file {
         border-style: solid;
-        border-color: var(--border);
-        padding: 20px 24px;
+        border-color: var(--border-hover);
+        padding: 18px 20px;
       }
       .drop-icon {
-        width: 72px; height: 72px;
-        border-radius: 20px;
+        width: 64px; height: 64px;
+        border-radius: 18px;
         background: var(--surface2);
         border: 1px solid var(--border);
         display: flex; align-items: center; justify-content: center;
-        margin: 0 auto 16px;
+        margin: 0 auto 14px;
         transition: all var(--transition);
       }
       .dropzone:hover .drop-icon {
-        background: var(--accent-glow);
-        border-color: var(--accent);
+        background: rgba(0,229,160,0.08);
+        border-color: rgba(0,229,160,0.3);
       }
-      .drop-text { font-size: 17px; font-weight: 600; color: var(--text); margin-bottom: 6px; }
-      .drop-sub { font-size: 13px; color: var(--text-muted); }
+      .drop-text { font-size: 16px; font-weight: 600; color: var(--text); margin-bottom: 6px; }
+      .drop-sub  { font-size: 13px; color: var(--text-muted); line-height: 1.5; }
       .drop-browse { color: var(--accent); font-weight: 600; }
       .file-preview { display: flex; align-items: center; gap: 14px; text-align: left; }
       .file-info { flex: 1; min-width: 0; }
@@ -334,20 +321,18 @@ function FileUploaderStyle() {
       .remove-btn:hover { background: var(--danger); border-color: var(--danger); color: white; }
       .progress-wrap { display: flex; align-items: center; gap: 12px; }
       .progress-bar {
-        flex: 1; height: 4px;
+        flex: 1; height: 3px;
         background: var(--surface2); border-radius: 99px; overflow: hidden;
       }
       .progress-fill {
         height: 100%;
-        background: linear-gradient(90deg, var(--accent), var(--accent2));
+        background: linear-gradient(90deg, var(--accent), #00c8ff);
         border-radius: 99px; transition: width 200ms ease;
       }
-      .progress-label { font-size: 12px; color: var(--text-muted); min-width: 36px; }
-
-      /* Turnstile wrapper */
+      .progress-label { font-size: 12px; color: var(--text-muted); min-width: 36px; font-family: "JetBrains Mono", monospace; }
       .turnstile-wrap {
         display: flex; flex-direction: column; align-items: center; gap: 8px;
-        padding: 16px;
+        padding: 14px 16px;
         background: var(--surface2);
         border: 1px solid var(--border);
         border-radius: var(--radius-sm);
@@ -359,47 +344,14 @@ function FileUploaderStyle() {
         letter-spacing: 0.05em; text-transform: uppercase;
         margin: 0 0 4px;
       }
-      .turnstile-ok {
-        font-size: 12px; font-weight: 700;
-        color: #34d399; margin: 0;
-      }
-
-      /* Upload success flash */
-      .upload-success-panel {
-        display: flex; flex-direction: column; align-items: center; gap: 8px;
-        padding: 32px 20px; text-align: center;
-        background: var(--surface2);
-        border: 1px solid var(--border);
-        border-radius: var(--radius);
-      }
-      .success-icon {
-        width: 48px; height: 48px; border-radius: 50%;
-        background: rgba(52,211,153,0.15); color: #34d399;
-        display: flex; align-items: center; justify-content: center;
-        font-size: 24px; margin-bottom: 8px;
-      }
-      .success-title { font-size: 18px; font-weight: 700; color: var(--text); margin: 0; }
-      .success-sub { font-size: 14px; color: var(--text-muted); margin: 0 0 16px; }
-      
-      .room-code-box {
-        display: flex; flex-direction: column; align-items: center; gap: 4px;
-        padding: 12px 24px;
-        background: var(--surface); border: 1px dashed var(--border-hover);
-        border-radius: var(--radius-sm); width: 100%;
-      }
-      .room-code-label { font-size: 11px; font-weight: 600; text-transform: uppercase; color: var(--text-muted); letter-spacing: 0.05em; }
-      .room-code-val { font-size: 28px; font-weight: 800; color: var(--accent); letter-spacing: 0.15em; }
-
+      .turnstile-ok { font-size: 12px; font-weight: 700; color: var(--accent); margin: 0; }
       .error-msg {
         font-size: 13px; color: var(--danger);
-        background: #f8717115; border: 1px solid #f8717130;
+        background: rgba(255,77,106,0.06); border: 1px solid rgba(255,77,106,0.2);
         border-radius: var(--radius-sm); padding: 10px 14px;
       }
       .upload-btn { width: 100%; }
-      .btn-disabled {
-        opacity: 0.5;
-        cursor: not-allowed;
-      }
+      .btn-disabled { opacity: 0.4; cursor: not-allowed; }
     `}</style>
   );
 }
@@ -412,10 +364,10 @@ function FileIcon({ type }: { type: string }) {
 
   let color = 'var(--accent2)';
   let label = 'FILE';
-  if (isImage) { color = '#34d399'; label = 'IMG'; }
-  if (isPdf) { color = '#f87171'; label = 'PDF'; }
-  if (isVideo) { color = '#a78bfa'; label = 'VID'; }
-  if (isAudio) { color = '#fbbf24'; label = 'AUD'; }
+  if (isImage) { color = 'var(--accent)'; label = 'IMG'; }
+  if (isPdf) { color = 'var(--danger)'; label = 'PDF'; }
+  if (isVideo) { color = 'var(--accent2)'; label = 'VID'; }
+  if (isAudio) { color = 'var(--warning)'; label = 'AUD'; }
 
   return (
     <div style={{

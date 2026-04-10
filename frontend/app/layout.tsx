@@ -3,12 +3,12 @@ import Script from 'next/script';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'AirForShare — Instant File & Text Sharing',
-  description: 'Drop a file or paste text. Get a 6-digit code. Share instantly. No signup, no storage, gone in 30 minutes.',
-  keywords: ['file sharing', 'instant share', 'no signup', 'temporary file transfer'],
+  title: 'NearDrop — Drop Files Instantly to Nearby Devices',
+  description: 'Drop a file or paste text. Anyone on your WiFi sees it instantly — no signup, no codes, no friction.',
+  keywords: ['file sharing', 'instant share', 'no signup', 'proximity sharing', 'wifi sharing', 'neardrop'],
   openGraph: {
-    title: 'AirForShare',
-    description: 'Instant file sharing — no signup required',
+    title: 'NearDrop',
+    description: 'Drop files to nearby devices instantly — no code, no signup',
     type: 'website',
   },
 };
@@ -17,7 +17,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <head>
-        {/* Cloudflare Turnstile CAPTCHA */}
         <Script
           src="https://challenges.cloudflare.com/turnstile/v0/api.js"
           async

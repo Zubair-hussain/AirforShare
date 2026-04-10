@@ -21,7 +21,6 @@ export default function TextShare() {
     try {
       const res = await shareText(content.trim());
 
-      // ── LOCAL STORAGE FALLBACK ──────────────────────────────────────
       try {
         const sharePayload = {
           subnet: 'native',
@@ -36,7 +35,6 @@ export default function TextShare() {
         console.error('Local fallback skipped', e);
       }
 
-      // 🔥 AUTO REDIRECT (REMOVED)
       setUploadResult({ roomCode: res.roomCode });
       setContent('');
 
@@ -52,17 +50,13 @@ export default function TextShare() {
       {uploadResult ? (
         <div className="upload-success-panel animate-in">
           <div className="success-icon">✓</div>
-          <p className="success-title">Shared successfully!</p>
+          <p className="success-title">Text shared!</p>
           <p className="success-sub">
-            Your text is now available on your WiFi network.
+            Your text is now visible to everyone on your WiFi.<br/>
+            They'll see it automatically &mdash; no code needed.
           </p>
-          <div className="room-code-box">
-            <span className="room-code-label">Remote Share Code</span>
-            <span className="room-code-val mono">{uploadResult.roomCode}</span>
-          </div>
-          
           <button className="btn-ghost" onClick={() => setUploadResult(null)} style={{ marginTop: 16, width: '100%' }}>
-            Share new text
+            Share more text
           </button>
         </div>
       ) : (
@@ -70,7 +64,7 @@ export default function TextShare() {
           <div className="textarea-wrap">
             <textarea
               className="text-input"
-              placeholder="Paste text, a link, a password, code..."
+              placeholder="Paste text, links, or code here..."
               value={content}
               onChange={e => setContent(e.target.value.slice(0, MAX))}
               rows={6}
@@ -84,7 +78,7 @@ export default function TextShare() {
           {error && <p className="error-msg">{error}</p>}
 
           <button
-            className="btn-primary"
+            className={`btn-primary ${!content.trim() || loading ? 'btn-disabled' : ''}`}
             onClick={submit}
             disabled={!content.trim() || loading}
             style={{ width: '100%' }}
@@ -98,14 +92,14 @@ export default function TextShare() {
               <>
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
                   <path
-                    d="M2 8h12M9 3l5 5-5 5"
+                    d="M3 8h10M9 3l5 5-5 5"
                     stroke="currentColor"
                     strokeWidth="2"
                     strokeLinecap="round"
                     strokeLinejoin="round"
                   />
                 </svg>
-                Share Text
+                Drop Text
               </>
             )}
           </button>
@@ -114,9 +108,7 @@ export default function TextShare() {
 
       <style>{`
         .section { display: flex; flex-direction: column; gap: 14px; }
-
         .textarea-wrap { position: relative; }
-
         .text-input {
           width: 100%;
           padding: 16px;
@@ -132,63 +124,27 @@ export default function TextShare() {
           transition: border-color var(--transition);
           line-height: 1.6;
         }
-
         .text-input:focus {
           outline: none;
           border-color: var(--accent);
+          background: rgba(0,229,160,0.02);
         }
-
-        .text-input::placeholder {
-          color: var(--text-subtle);
-        }
-
+        .text-input::placeholder { color: var(--text-muted); opacity: 0.5; }
         .char-count {
           position: absolute;
           bottom: 10px;
           right: 12px;
           font-size: 11px;
           font-family: 'JetBrains Mono', monospace;
-          color: var(--text-subtle);
+          color: var(--text-muted);
+          opacity: 0.6;
         }
-
-        .char-count.warn {
-          color: var(--warning);
-        }
-
+        .char-count.warn { color: var(--warning); opacity: 1; }
         .error-msg {
-          font-size: 13px;
-          color: var(--danger);
-          background: #f8717115;
-          border: 1px solid #f8717130;
-          border-radius: var(--radius-sm);
-          padding: 10px 14px;
+          font-size: 13px; color: var(--danger);
+          background: rgba(255,77,106,0.06); border: 1px solid rgba(255,77,106,0.2);
+          border-radius: var(--radius-sm); padding: 10px 14px;
         }
-
-        /* Upload success flash */
-        .upload-success-panel {
-          display: flex; flex-direction: column; align-items: center; gap: 8px;
-          padding: 32px 20px; text-align: center;
-          background: var(--surface2);
-          border: 1px solid var(--border);
-          border-radius: var(--radius);
-        }
-        .success-icon {
-          width: 48px; height: 48px; border-radius: 50%;
-          background: rgba(52,211,153,0.15); color: #34d399;
-          display: flex; align-items: center; justify-content: center;
-          font-size: 24px; margin-bottom: 8px;
-        }
-        .success-title { font-size: 18px; font-weight: 700; color: var(--text); margin: 0; }
-        .success-sub { font-size: 14px; color: var(--text-muted); margin: 0 0 16px; }
-        
-        .room-code-box {
-          display: flex; flex-direction: column; align-items: center; gap: 4px;
-          padding: 12px 24px;
-          background: var(--surface); border: 1px dashed var(--border-hover);
-          border-radius: var(--radius-sm); width: 100%;
-        }
-        .room-code-label { font-size: 11px; font-weight: 600; text-transform: uppercase; color: var(--text-muted); letter-spacing: 0.05em; }
-        .room-code-val { font-size: 28px; font-weight: 800; color: var(--accent); letter-spacing: 0.15em; }
       `}</style>
     </div>
   );
