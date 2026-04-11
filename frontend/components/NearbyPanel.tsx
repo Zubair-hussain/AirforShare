@@ -35,14 +35,28 @@ export default function NearbyPanel() {
       setStatus('loading');
       try {
         // 1. Fetch the logical cluster session ID from backend
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
-        const res = await fetch(`${apiUrl}/room/session`);
-        if (!res.ok) throw new Error('Failed to fetch session');
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL;
         
-        const { sessionId } = await res.json();
+        if (!apiUrl && typeof window !== 'undefined' && window.location.hostname === 'localhost') {
+           console.warn('NEXT_PUBLIC_API_URL is missing. Falling back to localhost:8788 for dev.');
+        }
+
+        const targetUrl = apiUrl ? `${apiUrl}/room/session` : '/api/proxy/room/session'; // fallback or proxy
+        
+        const res = await fetch(apiUrl ? `${apiUrl}/room/session` : '/room/session');
+        if (!res.ok) {
+           console.error('Session fetch failed:', res.status);
+           throw new Error('Failed to fetch session');
+        }
+        
+        const data = await res.json();
+        const sessionId = data.sessionId;
+
+        if (!sessionId) throw new Error('No sessionId returned');
+        
         if (cancelled) return;
         setClusterId(sessionId);
-        setStatus('empty'); // Start empty, wait for shares
+        setStatus('empty');
 
         // 2. Subscribe to Supabase Realtime for this cluster
         const channel = subscribeToCluster(sessionId, {
