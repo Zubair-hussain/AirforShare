@@ -125,4 +125,36 @@ text.post('/', async (c) => {
   }
 });
 
+// GET /text/:id — fetch full text content by UUID
+text.get('/:id', async (c) => {
+  const { id } = c.req.param();
+
+  try {
+    const share = await c.env.DB.prepare(
+      'SELECT content, expires_at, created_at, network_private FROM shares WHERE id = ? AND type = "text"'
+    )
+      .bind(id)
+      .first<any>();
+
+    if (!share) {
+      return c.json({ error: 'Text share not found' }, 404);
+    }
+
+    if (Date.now() > share.expires_at) {
+      return c.json({ error: 'Share has expired', expired: true }, 410);
+    }
+
+    return c.json({
+      id,
+      content: share.content,
+      expiresAt: share.expires_at,
+      createdAt: share.created_at,
+      isLocal: Boolean(share.network_private),
+    });
+  } catch (err) {
+    console.error('Text retrieval error:', err);
+    return c.json({ error: 'Failed to retrieve text share' }, 500);
+  }
+});
+
 export { text };

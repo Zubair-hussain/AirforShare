@@ -168,6 +168,22 @@ export async function getRoomInfo(roomCode: string): Promise<ShareInfo> {
   };
 }
 
+// ── Get text content by shareId ──────────────────────────────────────
+export async function getTextContent(shareId: string): Promise<any> {
+  const res = await fetch(`${API_URL}/text/${shareId}`);
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to fetch text content');
+  return data;
+}
+
+// ── Get file metadata by shareId ─────────────────────────────────────
+export async function getFileMetadata(shareId: string): Promise<any> {
+  const res = await fetch(`${API_URL}/upload/${shareId}`);
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Failed to fetch file metadata');
+  return data;
+}
+
 // ── Download URL ─────────────────────────────────────────────────────
 export function getDownloadUrl(roomCode: string): string {
   return `${API_URL}/download/${roomCode}`;

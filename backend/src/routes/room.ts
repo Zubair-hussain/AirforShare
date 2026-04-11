@@ -21,18 +21,22 @@ room.get('/network/:networkId', async (c) => {
     return c.json({ error: 'Network ID mismatch' }, 403);
   }
 
-  // Get active local broadcasts for this subnet
+  // Get hydrated local broadcasts for this subnet
   try {
-    const { results } = await c.env.DB.prepare(
-      'SELECT * FROM local_broadcasts WHERE subnet = ? AND expires_at > ? ORDER BY created_at DESC LIMIT 20'
-    )
+    const { results } = await c.env.DB.prepare(`
+      SELECT 
+        lb.id, lb.room_code, lb.share_id, lb.type, lb.expires_at, lb.created_at,
+        s.content, s.file_name, s.file_size, s.file_size_original, s.file_type, s.is_compressed
+      FROM local_broadcasts lb
+      LEFT JOIN shares s ON lb.share_id = s.id
+      WHERE lb.subnet = ? AND lb.expires_at > ? 
+      ORDER BY lb.created_at DESC LIMIT 20
+    `)
       .bind(networkId, Date.now())
       .all();
       
-    // Transform rows slightly if needed, or just return as is
     return c.json(results || []);
   } catch (err: any) {
-    // If table doesn't exist yet or similar error
     console.error('Discover network shares error:', err);
     return c.json([], 200); 
   }

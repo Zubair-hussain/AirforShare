@@ -56,46 +56,59 @@ export default function HomePage() {
         </p>
       </header>
 
-      {/* ── Main Action Stack ─────────────────────────────────────── */}
-      <div className="focused-stack animate-in" style={{ animationDelay: '80ms' }}>
-        {/* Send card */}
-        <section className="panel main-card" aria-label="Action panel">
-          <div className="tabs" role="tablist">
-            <button
-              id="tab-file"
-              role="tab"
-              aria-selected={tab === 'file'}
-              className={`tab ${tab === 'file' ? 'active' : ''}`}
-              onClick={() => setTab('file')}
-            >
-              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden>
-                <path d="M4 2h6l4 4v8a1 1 0 01-1 1H4a1 1 0 01-1-1V3a1 1 0 011-1z" stroke="currentColor" strokeWidth="1.4" fill="none"/>
-                <path d="M10 2v4h4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" opacity="0.5"/>
-              </svg>
-              File
-            </button>
-            <button
-              id="tab-text"
-              role="tab"
-              aria-selected={tab === 'text'}
-              className={`tab ${tab === 'text' ? 'active' : ''}`}
-              onClick={() => setTab('text')}
-            >
-              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden>
-                <path d="M3 4h10M3 8h8M3 12h5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-              </svg>
-              Text / Link
-            </button>
+      {/* ── Main Action Grid ─────────────────────────────────────── */}
+      <div className="main-grid animate-in" style={{ animationDelay: '80ms' }}>
+        {/* Left Panel: Send */}
+        <section className="panel-container send-panel" aria-label="Send panel">
+          <div className="panel-header-simple">
+            <span className="panel-dot green" />
+            <span className="panel-label">Send Content</span>
           </div>
 
-          <div key={tab} className="tab-content animate-in">
-            {tab === 'file' ? <FileUploader /> : <TextShare />}
+          <div className="panel main-card">
+            <div className="tabs" role="tablist">
+              <button
+                id="tab-file"
+                role="tab"
+                aria-selected={tab === 'file'}
+                className={`tab ${tab === 'file' ? 'active' : ''}`}
+                onClick={() => setTab('file')}
+              >
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden>
+                  <path d="M4 2h6l4 4v8a1 1 0 01-1 1H4a1 1 0 01-1-1V3a1 1 0 011-1z" stroke="currentColor" strokeWidth="1.4" fill="none"/>
+                  <path d="M10 2v4h4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" opacity="0.5"/>
+                </svg>
+                File
+              </button>
+              <button
+                id="tab-text"
+                role="tab"
+                aria-selected={tab === 'text'}
+                className={`tab ${tab === 'text' ? 'active' : ''}`}
+                onClick={() => setTab('text')}
+              >
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden>
+                  <path d="M3 4h10M3 8h8M3 12h5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                </svg>
+                Text
+              </button>
+            </div>
+
+            <div key={tab} className="tab-content animate-in">
+              {tab === 'file' ? <FileUploader /> : <TextShare />}
+            </div>
           </div>
         </section>
 
-        {/* Discovery area (Integrated below) */}
-        <section className="discovery-section" aria-label="Discovery section">
-          <NearbyPanel />
+        {/* Right Panel: Nearby */}
+        <section className="panel-container nearby-panel" aria-label="Nearby panel">
+          <div className="panel-header-simple">
+            <span className="panel-dot blue" />
+            <span className="panel-label">Nearby Devices</span>
+          </div>
+          <div className="panel discovery-card">
+            <NearbyPanel />
+          </div>
         </section>
       </div>
 
@@ -103,7 +116,7 @@ export default function HomePage() {
       <section className="how-section animate-in" style={{ animationDelay: '160ms' }} aria-labelledby="how-heading">
         <div className="how-header">
           <div className="how-pill">How it works</div>
-          <h2 id="how-heading" className="how-title">Three steps. That's it.</h2>
+          <h2 id="how-heading" className="how-title">Zero Friction. No Codes.</h2>
         </div>
 
         <div className="how-steps">
@@ -116,8 +129,8 @@ export default function HomePage() {
                   <path d="M4 16v1a2 2 0 002 2h10a2 2 0 002-2v-1" stroke="var(--accent)" strokeWidth="1.8" strokeLinecap="round" opacity="0.5"/>
                 </svg>
               ),
-              title: 'Drop your content',
-              desc: 'Drag & drop a file or paste any text, link or password into the Send panel.',
+              title: 'Drop content',
+              desc: 'Share any file or text instantly from your device.',
             },
             {
               num: '02',
@@ -128,8 +141,8 @@ export default function HomePage() {
                   <path d="M4.5 17.5a9 9 0 0113 0" stroke="var(--accent)" strokeWidth="1.8" strokeLinecap="round" opacity="0.3"/>
                 </svg>
               ),
-              title: 'It broadcasts instantly',
-              desc: 'NearDrop pushes your content to all devices on the same WiFi — automatically, no code needed.',
+              title: 'Auto-Broadcast',
+              desc: 'It stays on your network — no codes, no links, no manual steps.',
             },
             {
               num: '03',
@@ -139,8 +152,8 @@ export default function HomePage() {
                   <path d="M4 16v1a2 2 0 002 2h10a2 2 0 002-2v-1" stroke="var(--accent)" strokeWidth="1.8" strokeLinecap="round" opacity="0.5"/>
                 </svg>
               ),
-              title: 'Anyone nearby receives',
-              desc: 'Open NearDrop on any device — files and texts appear in the Nearby panel. Click to download or copy.',
+              title: 'Others receive',
+              desc: 'Anyone on the same WiFi sees it instantly in their Nearby panel.',
             },
           ].map((step, i) => (
             <div key={i} className="how-step">
@@ -157,9 +170,9 @@ export default function HomePage() {
       <footer className="footer">
         <span>NearDrop</span>
         <span className="footer-sep">·</span>
-        <span>Files auto-delete after 30 minutes</span>
+        <span>Secure Peer-to-Network Sharing</span>
         <span className="footer-sep">·</span>
-        <span>No data is stored permanently</span>
+        <span>No Data Storage</span>
       </footer>
 
       <style>{`
@@ -230,17 +243,44 @@ export default function HomePage() {
           color: var(--text-muted);
         }
 
-        /* ── Two column ── */
-        .two-col {
+        /* ── Main Action Grid ── */
+        .main-grid {
           display: grid;
           grid-template-columns: 1fr 1fr;
-          gap: 16px;
+          gap: 24px;
           width: 100%;
-          max-width: 940px;
+          max-width: 1080px;
+          margin: 0 auto;
           align-items: start;
         }
-        @media (max-width: 720px) {
-          .two-col { grid-template-columns: 1fr; }
+        @media (max-width: 860px) {
+          .main-grid { grid-template-columns: 1fr; max-width: 580px; }
+        }
+
+        .panel-container {
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+          width: 100%;
+        }
+        .panel-header-simple {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          padding-left: 4px;
+        }
+        .panel-dot {
+          width: 7px; height: 7px;
+          border-radius: 50%;
+        }
+        .panel-dot.green { background: var(--accent); box-shadow: 0 0 10px var(--accent); }
+        .panel-dot.blue  { background: var(--accent2); box-shadow: 0 0 10px var(--accent2); }
+        .panel-label {
+          font-size: 11px;
+          font-weight: 700;
+          text-transform: uppercase;
+          letter-spacing: 0.1em;
+          color: var(--text-muted);
         }
 
         /* ── Panel ── */
@@ -251,49 +291,23 @@ export default function HomePage() {
           padding: 24px;
           position: relative;
           transition: border-color var(--transition);
+          min-height: 380px;
+          display: flex;
+          flex-direction: column;
         }
         .panel:hover {
-          border-color: rgba(255,255,255,0.1);
+          border-color: var(--border-hover);
         }
-
-        .panel-header {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          margin-bottom: 18px;
-        }
-        .panel-dot {
-          width: 8px; height: 8px;
-          border-radius: 50%;
-          flex-shrink: 0;
-        }
-        .panel-dot.green {
-          background: var(--accent);
-          box-shadow: 0 0 8px rgba(0,229,160,0.6);
-          animation: dot-throb 2s ease-in-out infinite;
-        }
-        .panel-dot.blue {
-          background: var(--accent2);
-          box-shadow: 0 0 8px rgba(0,149,255,0.5);
-          animation: dot-throb 2s ease-in-out infinite 0.5s;
-        }
-        @keyframes dot-throb {
-          0%,100% { opacity: 1; transform: scale(1); }
-          50%      { opacity: 0.5; transform: scale(0.7); }
-        }
-        .panel-label {
-          font-size: 11px;
-          font-weight: 700;
-          text-transform: uppercase;
-          letter-spacing: 0.14em;
-          color: var(--text-muted);
+        .discovery-card {
+          background: rgba(22, 27, 31, 0.4);
+          backdrop-filter: blur(8px);
         }
 
         /* ── Tabs ── */
         .tabs {
           display: flex;
-          gap: 3px;
-          padding: 3px;
+          gap: 4px;
+          padding: 4px;
           background: var(--surface2);
           border-radius: 10px;
           margin-bottom: 20px;
@@ -303,8 +317,8 @@ export default function HomePage() {
           display: flex;
           align-items: center;
           justify-content: center;
-          gap: 6px;
-          padding: 9px 14px;
+          gap: 8px;
+          padding: 10px 14px;
           font-size: 13px;
           font-weight: 600;
           color: var(--text-muted);
@@ -312,19 +326,19 @@ export default function HomePage() {
           border-radius: 8px;
           transition: all var(--transition);
         }
-        .tab:hover { color: var(--text); }
+        .tab:hover { color: var(--text); background: rgba(255,255,255,0.03); }
         .tab.active {
           background: var(--surface3);
           color: var(--text);
-          box-shadow: 0 1px 6px rgba(0,0,0,0.5);
+          box-shadow: 0 2px 8px rgba(0,0,0,0.3);
         }
-        .tab-content { animation: fadeIn 0.2s ease both; }
+        .tab-content { animation: fadeIn 0.25s ease both; flex: 1; display: flex; flex-direction: column; }
 
         /* ── How it works ── */
         .how-section {
           width: 100%;
-          max-width: 940px;
-          margin-top: 64px;
+          max-width: 1080px;
+          margin-top: 80px;
         }
         .how-header {
           text-align: center;
@@ -344,7 +358,7 @@ export default function HomePage() {
           margin-bottom: 14px;
         }
         .how-title {
-          font-size: 30px;
+          font-size: 32px;
           font-weight: 800;
           letter-spacing: -0.03em;
           color: var(--text);
@@ -353,9 +367,9 @@ export default function HomePage() {
         .how-steps {
           display: grid;
           grid-template-columns: repeat(3, 1fr);
-          gap: 16px;
+          gap: 20px;
         }
-        @media (max-width: 640px) {
+        @media (max-width: 860px) {
           .how-steps { grid-template-columns: 1fr; }
         }
 
@@ -363,22 +377,12 @@ export default function HomePage() {
           background: var(--surface);
           border: 1px solid var(--border);
           border-radius: var(--radius);
-          padding: 28px 24px;
+          padding: 32px 24px;
           position: relative;
           overflow: hidden;
           transition: border-color var(--transition), transform var(--transition);
         }
-        .how-step::before {
-          content: '';
-          position: absolute;
-          top: 0; left: 0; right: 0;
-          height: 2px;
-          background: linear-gradient(90deg, transparent, rgba(0,229,160,0.3), transparent);
-          opacity: 0;
-          transition: opacity var(--transition);
-        }
-        .how-step:hover { border-color: rgba(0,229,160,0.15); transform: translateY(-2px); }
-        .how-step:hover::before { opacity: 1; }
+        .how-step:hover { border-color: var(--border-hover); transform: translateY(-4px); }
 
         .step-num {
           font-size: 11px;
@@ -386,27 +390,26 @@ export default function HomePage() {
           font-family: 'JetBrains Mono', monospace;
           color: var(--accent);
           letter-spacing: 0.1em;
-          margin-bottom: 14px;
+          margin-bottom: 16px;
         }
         .step-icon-wrap {
-          width: 46px; height: 46px;
-          border-radius: 13px;
+          width: 48px; height: 48px;
+          border-radius: 12px;
           background: rgba(0,229,160,0.07);
           border: 1px solid rgba(0,229,160,0.15);
           display: flex; align-items: center; justify-content: center;
-          margin-bottom: 14px;
+          margin-bottom: 16px;
         }
         .step-title {
-          font-size: 15px;
+          font-size: 16px;
           font-weight: 700;
           color: var(--text);
-          margin-bottom: 8px;
-          letter-spacing: -0.01em;
+          margin-bottom: 10px;
         }
         .step-desc {
-          font-size: 13px;
+          font-size: 13.5px;
           color: var(--text-muted);
-          line-height: 1.7;
+          line-height: 1.6;
         }
 
         /* ── Footer ── */

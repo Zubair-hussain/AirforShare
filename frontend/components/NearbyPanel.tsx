@@ -15,6 +15,7 @@ interface NearbyShare {
   is_compressed?: number;
   expires_at: number;
   created_at: number;
+  content?: string;
 }
 
 type Status = 'loading' | 'ready' | 'error' | 'empty';
@@ -24,7 +25,6 @@ export default function NearbyPanel() {
   const [shares, setShares] = useState<NearbyShare[]>([]);
   const [networkId, setNetworkId] = useState<string | null>(null);
   const [expandedText, setExpandedText] = useState<Record<string, string>>({});
-  const [expanding, setExpanding] = useState<string | null>(null);
   const [downloading, setDownloading] = useState<string | null>(null);
   const [lastRefresh, setLastRefresh] = useState<number>(Date.now());
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -73,21 +73,18 @@ export default function NearbyPanel() {
     };
   }, [loadShares]);
 
-  const handleTextExpand = async (share: NearbyShare) => {
-    if (expandedText[share.room_code] !== undefined) {
+  const handleTextExpand = (roomCode: string) => {
+    if (expandedText[roomCode] !== undefined) {
       const next = { ...expandedText };
-      delete next[share.room_code];
+      delete next[roomCode];
       setExpandedText(next);
       return;
     }
-    setExpanding(share.room_code);
-    try {
-      const info = await getRoomInfo(share.room_code);
-      setExpandedText(prev => ({ ...prev, [share.room_code]: info.content || '' }));
-    } catch {
-      setExpandedText(prev => ({ ...prev, [share.room_code]: '⚠ Failed to load content.' }));
-    } finally {
-      setExpanding(null);
+    
+    // With hydrated discovery, content is already in the share object
+    const share = shares.find(s => s.room_code === roomCode);
+    if (share?.type === 'text') {
+      setExpandedText(prev => ({ ...prev, [roomCode]: share.content || '' }));
     }
   };
 
@@ -100,13 +97,31 @@ export default function NearbyPanel() {
   // ── Minimal Scanning / Empty State ─────────────────────────────────
   if (status === 'loading' || status === 'error' || status === 'empty') {
     return (
-      <div className="np-state minimal">
+      <div className="np-state">
         <div className="np-pulse-ring">
           <div className="np-ring np-ring-1" />
           <div className="np-ring np-ring-2" />
           <div className="np-ring np-ring-3" />
           <div className="np-core" />
         </div>
+        
+        <h3 className="np-state-title">
+          {status === 'loading' ? 'Initializing...' : 
+           status === 'error' ? 'Network Error' : 'Scanning WiFi...'}
+        </h3>
+        
+        <p className="np-state-sub">
+          {status === 'loading' ? 'Preparing secure discovery...' :
+           status === 'error' ? 'Unable to reach backend. Check your connection.' :
+           'Waiting for nearby shares to appear. No codes needed.'}
+        </p>
+
+        {status === 'empty' && (
+          <div className="np-scan-bar">
+            <div className="np-scan-fill" />
+          </div>
+        )}
+
         <NPStyles />
       </div>
     );
@@ -114,16 +129,26 @@ export default function NearbyPanel() {
 
   // ── Ready — share list ───────────────────────────────────────────────
   return (
-    <div className="np-list-wrap minimal">
+    <div className="np-list-wrap">
+      <div className="np-toolbar">
+        <div className="np-count-label">
+          <span className="np-count-num">{shares.length}</span> Active {shares.length === 1 ? 'Share' : 'Shares'}
+        </div>
+        <div className="np-live-badge">
+          <span className="np-live-dot" />
+          LIVE
+        </div>
+      </div>
+
       <div className="np-list" role="list">
         {shares.map(share => (
           <div key={share.room_code} className="np-item" role="listitem">
             <button
               className="np-row"
               onClick={() =>
-                share.type === 'file' ? handleDownload(share) : handleTextExpand(share)
+                share.type === 'file' ? handleDownload(share) : handleTextExpand(share.room_code)
               }
-              disabled={expanding === share.room_code || downloading === share.room_code}
+              disabled={downloading === share.room_code}
               aria-label={share.type === 'file' ? `Download ${share.file_name}` : `View shared text`}
             >
               <FileTypeIcon type={share.file_type || (share.type === 'text' ? 'text/plain' : '')} />
@@ -137,7 +162,7 @@ export default function NearbyPanel() {
               </div>
 
               <div className="np-action-icon">
-                {(expanding === share.room_code || downloading === share.room_code) ? (
+                {(downloading === share.room_code) ? (
                   <span className="np-spinner" />
                 ) : share.type === 'file' ? (
                   <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
@@ -160,13 +185,16 @@ export default function NearbyPanel() {
                 <pre className="np-text-pre">{expandedText[share.room_code]}</pre>
                 <button
                   className="btn-ghost np-copy-btn"
-                  onClick={() => navigator.clipboard.writeText(expandedText[share.room_code])}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    navigator.clipboard.writeText(expandedText[share.room_code]);
+                  }}
                 >
                   <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
                     <rect x="4" y="4" width="8" height="8" rx="1.5" stroke="currentColor" strokeWidth="1.3"/>
                     <path d="M2 9V2.5A.5.5 0 012.5 2H9" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
                   </svg>
-                  Copy to clipboard
+                  Copy text
                 </button>
               </div>
             )}
@@ -175,8 +203,7 @@ export default function NearbyPanel() {
       </div>
 
       <div className="np-footer-bar">
-        <span>Refreshing every 4s</span>
-        <span>·</span>
+        <span>Polling network...</span>
         <span className="np-refresh-time">{secondsAgo(lastRefresh)}</span>
       </div>
 
@@ -189,7 +216,7 @@ export default function NearbyPanel() {
 
 function secondsAgo(ts: number) {
   const s = Math.floor((Date.now() - ts) / 1000);
-  if (s < 5) return 'just now';
+  if (s < 2) return 'connected';
   return `${s}s ago`;
 }
 
@@ -201,7 +228,7 @@ function ExpiryLabel({ expiresAt }: { expiresAt: number }) {
       if (rem <= 0) { setLabel('expired'); return; }
       const m = Math.floor(rem / 60000);
       const s = Math.floor((rem % 60000) / 1000);
-      setLabel(`${m}:${s.toString().padStart(2, '0')} left`);
+      setLabel(`${m}:${s.toString().padStart(2, '0')}`);
     };
     update();
     const t = setInterval(update, 1000);
@@ -219,20 +246,20 @@ function FileTypeIcon({ type }: { type: string }) {
 
   let color = '#7c3aed';
   let label = 'BIN';
-  if (isImage) { color = '#00e5a0'; label = 'IMG'; }
+  if (isImage) { color = 'var(--accent)'; label = 'IMG'; }
   if (isPdf)   { color = '#ff4d6a'; label = 'PDF'; }
-  if (isVideo) { color = '#a78bfa'; label = 'VID'; }
+  if (isVideo) { color = '#0095ff'; label = 'VID'; }
   if (isAudio) { color = '#ffb547'; label = 'AUD'; }
-  if (isText)  { color = '#0095ff'; label = 'TXT'; }
+  if (isText)  { color = 'var(--accent2)'; label = 'TXT'; }
 
   return (
     <div style={{
-      width: 38, height: 38, borderRadius: 9, flexShrink: 0,
+      width: 40, height: 40, borderRadius: 10, flexShrink: 0,
       background: `${color}12`,
-      border: `1px solid ${color}28`,
+      border: `1px solid ${color}22`,
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       fontFamily: 'JetBrains Mono, monospace',
-      fontSize: '9px', fontWeight: 700, color,
+      fontSize: '10px', fontWeight: 800, color,
       letterSpacing: '0.05em',
     }}>
       {label}
@@ -250,112 +277,99 @@ function NPStyles() {
         align-items: center;
         justify-content: center;
         text-align: center;
-        padding: 40px 16px;
-        gap: 10px;
-        min-height: 280px;
+        padding: 40px 24px;
+        gap: 12px;
+        flex: 1;
       }
       .np-state-title {
-        font-size: 15px; font-weight: 700; color: var(--text); margin: 0;
+        font-size: 16px; font-weight: 800; color: var(--text); margin: 0;
+        letter-spacing: -0.01em;
       }
       .np-state-sub {
-        font-size: 12px; color: var(--text-muted);
-        line-height: 1.65; margin: 0; max-width: 210px;
+        font-size: 13px; color: var(--text-muted);
+        line-height: 1.6; margin: 0; max-width: 240px;
       }
 
       /* ── Pulse ring radar ── */
       .np-pulse-ring {
         position: relative;
-        width: 80px; height: 80px;
-        margin-bottom: 8px;
+        width: 100px; height: 100px;
+        margin-bottom: 12px;
       }
       .np-ring {
         position: absolute;
         border-radius: 50%;
-        border: 1.5px solid rgba(0,229,160,0.35);
+        border: 1.5px solid var(--accent);
         top: 50%; left: 50%;
         transform: translate(-50%,-50%);
-        animation: np-radar 2.8s ease-out infinite;
+        animation: np-radar 3s cubic-bezier(0.2, 0, 0.4, 1) infinite;
+        opacity: 0;
       }
-      .np-ring-1 { width: 22px; height: 22px; animation-delay: 0s; }
-      .np-ring-2 { width: 48px; height: 48px; animation-delay: 0.7s; }
-      .np-ring-3 { width: 76px; height: 76px; animation-delay: 1.4s; }
+      .np-ring-1 { width: 30px; height: 30px; animation-delay: 0s; }
+      .np-ring-2 { width: 60px; height: 60px; animation-delay: 1s; }
+      .np-ring-3 { width: 100px; height: 100px; animation-delay: 2s; }
       .np-core {
         position: absolute; top: 50%; left: 50%;
         transform: translate(-50%,-50%);
         width: 12px; height: 12px; border-radius: 50%;
         background: var(--accent);
-        box-shadow: 0 0 12px rgba(0,229,160,0.7);
+        box-shadow: 0 0 20px var(--accent);
+        z-index: 2;
       }
       @keyframes np-radar {
-        0%   { opacity: 0.7; transform: translate(-50%,-50%) scale(0.2); }
-        100% { opacity: 0;   transform: translate(-50%,-50%) scale(1); }
+        0%   { opacity: 0;   transform: translate(-50%,-50%) scale(0.1); }
+        20%  { opacity: 0.5; }
+        100% { opacity: 0;   transform: translate(-50%,-50%) scale(1.2); }
       }
 
-      /* ── Error icon ── */
-      .np-icon-box {
-        width: 56px; height: 56px; border-radius: 16px;
-        display: flex; align-items: center; justify-content: center;
-        margin-bottom: 6px;
-      }
-      .np-icon-dim {
-        background: var(--surface2); border: 1px solid var(--border);
-        color: var(--text-muted);
-      }
-
-      /* ── Empty state ── */
-      .np-empty-icon {
-        width: 60px; height: 60px; border-radius: 18px;
-        background: rgba(0,229,160,0.06);
-        border: 1px solid rgba(0,229,160,0.14);
-        display: flex; align-items: center; justify-content: center;
-        margin-bottom: 6px;
-      }
+      /* ── Scanning bar ── */
       .np-scan-bar {
-        width: 100px; height: 2px;
+        width: 120px; height: 3px;
         background: var(--surface2);
         border-radius: 99px; overflow: hidden;
-        margin-top: 12px;
+        margin-top: 8px;
       }
       .np-scan-fill {
-        display: block; height: 100%; width: 35%;
+        display: block; height: 100%; width: 40%;
         background: linear-gradient(90deg, transparent, var(--accent), transparent);
-        animation: np-scan 1.8s ease-in-out infinite;
+        animation: np-scan 1.5s ease-in-out infinite;
         border-radius: 99px;
       }
       @keyframes np-scan {
         0%   { transform: translateX(-100%); }
-        100% { transform: translateX(380%); }
+        100% { transform: translateX(250%); }
       }
 
       /* ── Share list ── */
-      .np-list-wrap { display: flex; flex-direction: column; gap: 0; min-height: 280px; }
+      .np-list-wrap { display: flex; flex-direction: column; height: 100%; }
 
       .np-toolbar {
         display: flex; align-items: center; justify-content: space-between;
-        margin-bottom: 12px;
+        margin-bottom: 18px;
+        padding: 0 4px;
       }
       .np-count-label {
-        font-size: 12px; color: var(--text-muted); font-weight: 500;
+        font-size: 13px; color: var(--text-muted); font-weight: 500;
       }
-      .np-count-num { color: var(--text); font-weight: 700; }
+      .np-count-num { color: var(--text); font-weight: 800; font-family: 'JetBrains Mono', monospace; }
 
       .np-live-badge {
-        display: flex; align-items: center; gap: 5px;
-        padding: 3px 10px;
-        background: rgba(0,229,160,0.07);
-        border: 1px solid rgba(0,229,160,0.18);
+        display: flex; align-items: center; gap: 6px;
+        padding: 4px 10px;
+        background: rgba(0,229,160,0.08);
+        border: 1px solid rgba(0,229,160,0.2);
         border-radius: 99px;
-        font-size: 11px; font-weight: 700; color: var(--accent);
-        letter-spacing: 0.06em;
+        font-size: 10px; font-weight: 800; color: var(--accent);
+        letter-spacing: 0.08em;
       }
       .np-live-dot {
         width: 6px; height: 6px; border-radius: 50%;
         background: var(--accent);
-        animation: np-blink 1.7s ease-in-out infinite;
+        animation: np-blink 1.5s ease-in-out infinite;
       }
       @keyframes np-blink {
-        0%,100% { opacity: 1; }
-        50%      { opacity: 0.25; }
+        0%,100% { opacity: 1; transform: scale(1); }
+        50%      { opacity: 0.3; transform: scale(0.8); }
       }
 
       .np-list {
@@ -363,75 +377,76 @@ function NPStyles() {
         background: var(--surface2);
         border: 1px solid var(--border);
         border-radius: var(--radius-sm);
-        overflow: hidden;
         flex: 1;
+        overflow-y: auto;
       }
       .np-item { border-bottom: 1px solid var(--border); }
       .np-item:last-child { border-bottom: none; }
 
       .np-row {
-        display: flex; align-items: center; gap: 12px;
-        width: 100%; padding: 13px 14px;
+        display: flex; align-items: center; gap: 14px;
+        width: 100%; padding: 14px 16px;
         background: transparent; border: none;
         cursor: pointer; text-align: left;
         transition: background var(--transition);
       }
       .np-row:hover:not(:disabled) { background: rgba(255,255,255,0.03); }
-      .np-row:disabled { opacity: 0.5; cursor: wait; }
+      .np-row:disabled { opacity: 0.6; cursor: wait; }
 
-      .np-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+      .np-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
       .np-name {
-        font-size: 13px; font-weight: 600; color: var(--text);
+        font-size: 13.5px; font-weight: 600; color: var(--text);
         white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
       }
       .np-meta {
-        font-size: 10px; color: var(--text-muted);
+        font-size: 10.5px; color: var(--text-muted);
         font-family: 'JetBrains Mono', monospace;
-        text-transform: uppercase; letter-spacing: 0.05em;
+        text-transform: uppercase; letter-spacing: 0.04em;
+        display: flex; align-items: center; gap: 6px;
       }
 
       .np-action-icon {
         flex-shrink: 0; color: var(--text-muted);
         display: flex; align-items: center; justify-content: center;
-        transition: color var(--transition);
+        transition: color var(--transition), transform 0.2s;
       }
-      .np-row:hover .np-action-icon { color: var(--accent); }
+      .np-row:hover .np-action-icon { color: var(--text); transform: scale(1.1); }
 
       .np-spinner {
-        width: 15px; height: 15px; border-radius: 50%;
-        border: 1.5px solid var(--border); border-top-color: var(--accent);
-        animation: spin 0.6s linear infinite;
+        width: 16px; height: 16px; border-radius: 50%;
+        border: 2px solid var(--border); border-top-color: var(--accent);
+        animation: spin 0.8s linear infinite;
       }
 
       /* ── Text expand ── */
       .np-text-expand {
-        padding: 12px 14px 14px;
+        padding: 0 16px 16px;
         background: rgba(0,229,160,0.02);
-        border-top: 1px solid var(--border);
       }
       .np-text-pre {
         font-family: 'JetBrains Mono', monospace;
-        font-size: 12px; color: var(--text);
+        font-size: 12.5px; color: var(--text);
         background: var(--surface);
         border: 1px solid var(--border);
-        border-radius: var(--radius-xs);
-        padding: 10px 12px;
+        border-radius: var(--radius-sm);
+        padding: 12px;
         white-space: pre-wrap; word-break: break-word;
-        margin: 0 0 10px;
-        max-height: 180px; overflow-y: auto;
+        margin: 0 0 12px;
+        max-height: 200px; overflow-y: auto;
         line-height: 1.6;
       }
-      .np-copy-btn { width: 100%; font-size: 12px; padding: 8px 16px; }
+      .np-copy-btn { width: 100%; font-size: 12px; padding: 10px 16px; height: auto; }
 
       /* ── Footer ── */
       .np-footer-bar {
-        margin-top: 10px;
-        display: flex; align-items: center; gap: 6px;
+        margin-top: 14px;
+        display: flex; align-items: center; justify-content: space-between;
         font-size: 11px; color: var(--text-subtle);
         font-family: 'JetBrains Mono', monospace;
-        justify-content: center;
+        padding: 0 4px;
       }
-      .np-refresh-time { color: var(--text-muted); }
+      .np-refresh-time { color: var(--text-muted); font-weight: 600; }
     `}</style>
   );
 }
+

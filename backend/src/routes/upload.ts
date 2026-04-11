@@ -172,4 +172,42 @@ upload.post('/', async (c) => {
   }
 });
 
+// GET /upload/:id — retrieve file metadata by UUID
+upload.get('/:id', async (c) => {
+  const { id } = c.req.param();
+
+  try {
+    const share = await c.env.DB.prepare(
+      'SELECT room_code, file_name, file_size, file_size_original, file_type, is_compressed, expires_at, created_at, network_private FROM shares WHERE id = ? AND type = "file"'
+    )
+      .bind(id)
+      .first<any>();
+
+    if (!share) {
+      return c.json({ error: 'File share not found' }, 404);
+    }
+
+    if (Date.now() > share.expires_at) {
+      return c.json({ error: 'Share has expired', expired: true }, 410);
+    }
+
+    return c.json({
+      id,
+      roomCode: share.room_code,
+      fileName: share.file_name,
+      fileSize: share.file_size,
+      fileSizeOriginal: share.file_size_original,
+      fileType: share.file_type,
+      isCompressed: Boolean(share.is_compressed),
+      downloadUrl: `/download/${share.room_code}`,
+      expiresAt: share.expires_at,
+      createdAt: share.created_at,
+      isLocal: Boolean(share.network_private),
+    });
+  } catch (err) {
+    console.error('File metadata retrieval error:', err);
+    return c.json({ error: 'Failed to retrieve file metadata' }, 500);
+  }
+});
+
 export { upload };
