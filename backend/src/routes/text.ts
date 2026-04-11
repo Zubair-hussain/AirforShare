@@ -64,45 +64,39 @@ text.post('/', async (c) => {
        (id, room_code, type, content, expires_at, created_at, network_private)
        VALUES (?, ?, 'text', ?, ?, ?, ?)`
     )
-      .bind(id, roomCode, trimmed, expiresAt, now, networkPrivate ? 1 : 0)
+      .bind(id, roomCode, trimmed, expiresAt, now, 0)
       .run();
 
-    // ── NATIVE LAN DISCOVERY ──────────────────────────────────────────
-    const networkId = await getNetworkId(c.req.raw.headers, c.env);
-    
-    try {
-      await c.env.DB.prepare(`
-        INSERT INTO local_broadcasts (
-          id, subnet, room_code, share_id,
-          type, expires_at, created_at
-        ) VALUES (?, ?, ?, ?, 'text', ?, ?)
-      `)
-        .bind(
-          crypto.randomUUID ? crypto.randomUUID() : id + '-bc',
-          networkId,
-          roomCode,
-          id,
-          expiresAt,
-          now
-        )
-        .run();
-    } catch (e) {
-      console.error('Failed to insert local text broadcast:', e);
-    }
-
-    // Optional: Also store in Supabase for redundancy
-
+    // ── REAL-TIME BROADCAST ───────────────────────────────────────────
     const supabase = initializeSupabase(c.env);
+    const clusterId = (c.req.raw as any).cf?.colo || 'global-v1';
+    const channelName = `cluster-${clusterId.toLowerCase()}`;
 
     if (supabase) {
+      // Store in Supabase (Backup + Realtime trigger)
       await storeShareMetadataSupabase(supabase, {
         id,
         room_code: roomCode,
         type: 'text',
-        content: trimmed, // ✅ IMPORTANT (you were missing this)
+        content: trimmed,
         expires_at: expiresAt,
         created_at: now,
-        network_private: networkPrivate,
+        network_private: false,
+      });
+
+      // Explicit broadcast for instant UI update
+      const channel = supabase.channel(channelName);
+      await channel.send({
+        type: 'broadcast',
+        event: 'new_share',
+        payload: {
+          id,
+          roomCode,
+          type: 'text',
+          content: trimmed,
+          expires_at: expiresAt,
+          created_at: now
+        }
       });
     }
 
@@ -111,10 +105,7 @@ text.post('/', async (c) => {
       roomCode,
       shareId: id,
       expiresAt,
-      isLocalNetwork: networkPrivate,
-      message: networkPrivate
-        ? 'Text available locally on your network'
-        : 'Text shared globally',
+      message: 'Text shared instantly with your live session cluster',
     });
   } catch (err) {
     console.error('Text share error:', err);

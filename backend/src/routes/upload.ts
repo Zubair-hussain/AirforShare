@@ -96,43 +96,18 @@ upload.post('/', async (c) => {
         isCompressed ? 1 : 0,
         expiresAt,
         now,
-        networkPrivate ? 1 : 0  // saved as info, not enforced as blocker
+        0 // network_private no longer used for discovery
       )
       .run();
 
-    // ── NATIVE LAN DISCOVERY ──────────────────────────────────────────
-    // Insert into local_broadcasts table so devices on same public IP can discover it
-    const networkId = await getNetworkId(c.req.raw.headers, c.env);
-    
-    try {
-      await c.env.DB.prepare(`
-        INSERT INTO local_broadcasts (
-          id, subnet, room_code, share_id, file_name,
-          file_size, file_size_original, file_type,
-          is_compressed, type, expires_at, created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'file', ?, ?)
-      `)
-        .bind(
-          crypto.randomUUID ? crypto.randomUUID() : id + '-bc',
-          networkId,
-          roomCode,
-          id,
-          file.name,
-          fileSize,
-          fileSizeOriginal,
-          file.type || '',
-          isCompressed ? 1 : 0,
-          expiresAt,
-          now
-        )
-        .run();
-    } catch (e) {
-      console.error('Failed to insert local broadcast:', e);
-    }
-
-    // Optional: Also store in Supabase for redundancy
+    // ── REAL-TIME BROADCAST ───────────────────────────────────────────
+    // Notify all clients in the same regional cluster instantly
     const supabase = initializeSupabase(c.env);
+    const clusterId = (c.req.raw as any).cf?.colo || 'global-v1';
+    const channelName = `cluster-${clusterId.toLowerCase()}`;
+
     if (supabase) {
+      // Store in Supabase (Backup + Realtime trigger)
       await storeShareMetadataSupabase(supabase, {
         id,
         room_code: roomCode,
@@ -143,7 +118,24 @@ upload.post('/', async (c) => {
         is_compressed: isCompressed,
         expires_at: expiresAt,
         created_at: now,
-        network_private: networkPrivate,
+        network_private: false,
+      });
+
+      // Explicit broadcast for instant UI update (faster than DB polling)
+      const channel = supabase.channel(channelName);
+      await channel.send({
+        type: 'broadcast',
+        event: 'new_share',
+        payload: {
+          id,
+          roomCode,
+          type: 'file',
+          file_name: file.name,
+          file_size: fileSize,
+          file_type: file.type,
+          expires_at: expiresAt,
+          created_at: now
+        }
       });
     }
 
@@ -160,11 +152,7 @@ upload.post('/', async (c) => {
         : '0%',
       expiresAt,
       downloadUrl: `/download/${roomCode}`,
-      isLocalNetwork: networkPrivate,
-      // Friendly message based on actual network context
-      message: networkPrivate
-        ? 'File shared on your local network'
-        : 'File shared — share the room code to let others in',
+      message: 'File shared instantly with your live session cluster',
     });
   } catch (err) {
     console.error('Upload error:', err);

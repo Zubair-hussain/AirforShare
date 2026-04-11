@@ -1,28 +1,14 @@
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
-// ── Get Network ID for Same-WiFi Discovery ────────────────────────────
-export async function getNetworkId(): Promise<string | null> {
+// ── Get Cluster Session Logic ─────────────────────────────────────────
+export async function getClusterSession(): Promise<{ sessionId: string } | null> {
   try {
-    const res = await fetch(`${API_URL}/room/network-id`);
+    const res = await fetch(`${API_URL}/room/session`);
     if (!res.ok) return null;
-    const data = await res.json();
-    return data.networkId || null;
+    return await res.json();
   } catch (err) {
-    console.error('Failed to fetch network ID:', err);
+    console.error('Failed to fetch cluster session:', err);
     return null;
-  }
-}
-
-// ── Fetch all active shares for a Same-WiFi Network ID ───────────────
-export async function fetchNetworkShares(networkId: string): Promise<any[]> {
-  try {
-    const res = await fetch(`${API_URL}/room/network/${networkId}`);
-    if (!res.ok) return [];
-    const data = await res.json();
-    return Array.isArray(data) ? data : [];
-  } catch (err) {
-    console.error('Failed to fetch network shares:', err);
-    return [];
   }
 }
 

@@ -1,14 +1,12 @@
 // lib/supabaseRealtime.ts
 // ─────────────────────────────────────────────────────────────────────────────
-// Handles Supabase Realtime for LAN-based auto-discovery
-// Broadcaster: uploader announces share to subnet channel
-// Subscriber: any device on same subnet receives it instantly
+// Handles Supabase Realtime for Cluster-based session sharing
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { createClient, SupabaseClient, RealtimeChannel } from '@supabase/supabase-js';
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY!;
+const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
 let _client: SupabaseClient | null = null;
 
@@ -20,109 +18,75 @@ export function getSupabaseClient(): SupabaseClient | null {
   return _client;
 }
 
-export interface LocalShare {
-  id?: string;
-  subnet: string;
-  room_code: string;
-  share_id: string;
+export interface ClusterShare {
+  id: string;
+  roomCode: string; // CamelCase from broadcast payload
+  type: 'file' | 'text';
   file_name?: string;
   file_size?: number;
   file_type?: string;
-  is_compressed?: boolean;
-  file_size_original?: number;
-  type: 'file' | 'text';
+  content?: string;
   expires_at: number;
-  created_at?: number;
+  created_at: number;
 }
 
-// ── Broadcast a share to the local subnet channel ────────────────────────────
-export async function broadcastLocalShare(
-  share: Omit<LocalShare, 'id' | 'created_at'>
-): Promise<boolean> {
-  const supabase = getSupabaseClient();
-  if (!supabase) return false;
-
-  try {
-    // 1. Insert into local_broadcasts table (persisted, for late joiners)
-    const { error } = await supabase.from('local_broadcasts').insert([
-      {
-        ...share,
-        created_at: Date.now(),
-      },
-    ]);
-
-    if (error) {
-      console.error('LAN broadcast insert error:', error.message);
-      return false;
-    }
-
-    return true;
-  } catch (err) {
-    console.error('LAN broadcast failed:', err);
-    return false;
+/**
+ * Subscribe to a Cluster Session
+ * Listens for broadcasts and presence changes
+ */
+export function subscribeToCluster(
+  clusterId: string,
+  callbacks: {
+    onNewShare: (share: any) => void;
+    onPresenceSync: (count: number) => void;
   }
-}
-
-// ── Subscribe to LAN shares on a subnet channel ──────────────────────────────
-export function subscribeLanShares(
-  subnet: string,
-  onShare: (share: LocalShare) => void
 ): RealtimeChannel | null {
   const supabase = getSupabaseClient();
   if (!supabase) return null;
 
-  const channel = supabase
-    .channel(`lan-${subnet}`)
-    .on(
-      'postgres_changes',
-      {
-        event: 'INSERT',
-        schema: 'public',
-        table: 'local_broadcasts',
-        filter: `subnet=eq.${subnet}`,
+  const channel = supabase.channel(clusterId, {
+    config: {
+      presence: {
+        key: 'user-' + Math.random().toString(36).substring(2, 7),
       },
-      (payload) => {
-        const share = payload.new as LocalShare;
-        // Only show non-expired shares
-        if (Date.now() < share.expires_at) {
-          onShare(share);
-        }
+    },
+  });
+
+  channel
+    .on('broadcast', { event: 'new_share' }, (payload) => {
+      console.log('Realtime share received:', payload);
+      callbacks.onNewShare(payload.payload);
+    })
+    .on('presence', { event: 'sync' }, () => {
+      const state = channel.presenceState();
+      callbacks.onPresenceSync(Object.keys(state).length);
+    })
+    .on('presence', { event: 'join' }, ({ newPresences }) => {
+      console.log('User joined cluster:', newPresences);
+    })
+    .on('presence', { event: 'leave' }, ({ leftPresences }) => {
+      console.log('User left cluster:', leftPresences);
+    })
+    .subscribe(async (status) => {
+      if (status === 'SUBSCRIBED') {
+        await channel.track({ online_at: new Date().toISOString() });
       }
-    )
-    .subscribe();
+    });
 
   return channel;
 }
 
-// ── Fetch existing LAN shares (for when user first opens the app) ────────────
-export async function fetchExistingLanShares(
-  subnet: string
-): Promise<LocalShare[]> {
-  const supabase = getSupabaseClient();
-  if (!supabase) return [];
-
-  try {
-    const { data, error } = await supabase
-      .from('local_broadcasts')
-      .select('*')
-      .eq('subnet', subnet)
-      .gt('expires_at', Date.now())
-      .order('created_at', { ascending: false })
-      .limit(10);
-
-    if (error) {
-      console.error('LAN fetch error:', error.message);
-      return [];
-    }
-
-    return (data as LocalShare[]) || [];
-  } catch {
-    return [];
-  }
+/**
+ * Fetch existing shares for the cluster from D1 via the standard room API
+ */
+export async function fetchClusterShares(sessionId: string): Promise<any[]> {
+  // Since we don't have a cluster-specific API in D1 yet, we might rely on 
+  // the initial load or a specific discovery endpoint.
+  // For now, we'll keep it as a placeholder or use the room discovery if available.
+  return [];
 }
 
-// ── Unsubscribe from channel ─────────────────────────────────────────────────
-export function unsubscribeLanShares(channel: RealtimeChannel | null) {
+export function unsubscribeFromCluster(channel: RealtimeChannel | null) {
   if (!channel) return;
   const supabase = getSupabaseClient();
   supabase?.removeChannel(channel);

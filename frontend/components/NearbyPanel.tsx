@@ -1,21 +1,19 @@
 'use client';
 
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { getNetworkId, fetchNetworkShares, getDownloadUrl, getRoomInfo, formatFileSize } from '../lib/api';
+import { getDownloadUrl, formatFileSize } from '../lib/api';
+import { subscribeToCluster, unsubscribeFromCluster } from '../lib/supabaseRealtime';
 
 interface NearbyShare {
   id: string;
   room_code: string;
-  share_id: string;
   type: 'file' | 'text';
   file_name?: string;
   file_size?: number;
-  file_size_original?: number;
   file_type?: string;
-  is_compressed?: number;
+  content?: string;
   expires_at: number;
   created_at: number;
-  content?: string;
 }
 
 type Status = 'loading' | 'ready' | 'error' | 'empty';
@@ -23,55 +21,75 @@ type Status = 'loading' | 'ready' | 'error' | 'empty';
 export default function NearbyPanel() {
   const [status, setStatus] = useState<Status>('loading');
   const [shares, setShares] = useState<NearbyShare[]>([]);
-  const [networkId, setNetworkId] = useState<string | null>(null);
+  const [clusterId, setClusterId] = useState<string | null>(null);
+  const [onlineCount, setOnlineCount] = useState<number>(1);
   const [expandedText, setExpandedText] = useState<Record<string, string>>({});
   const [downloading, setDownloading] = useState<string | null>(null);
-  const [lastRefresh, setLastRefresh] = useState<number>(Date.now());
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const channelRef = useRef<any>(null);
 
-  const loadShares = useCallback(async (netId: string) => {
-    try {
-      const data = await fetchNetworkShares(netId);
-      const active = (data as NearbyShare[]).filter(s => Date.now() < s.expires_at);
-      setShares(active);
-      setStatus(active.length === 0 ? 'empty' : 'ready');
-      setLastRefresh(Date.now());
-    } catch {
-      // Keep last known state silently
-    }
-  }, []);
-
+  // ── Initial Setup & Real-time Subscription ──────────────────────────
   useEffect(() => {
     let cancelled = false;
 
     async function init() {
       setStatus('loading');
       try {
-        const netId = await getNetworkId();
+        // 1. Fetch the logical cluster session ID from backend
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
+        const res = await fetch(`${apiUrl}/room/session`);
+        if (!res.ok) throw new Error('Failed to fetch session');
+        
+        const { sessionId } = await res.json();
         if (cancelled) return;
+        setClusterId(sessionId);
+        setStatus('empty'); // Start empty, wait for shares
 
-        if (!netId) {
-          setStatus('error');
-          return;
-        }
+        // 2. Subscribe to Supabase Realtime for this cluster
+        const channel = subscribeToCluster(sessionId, {
+          onNewShare: (newShare: any) => {
+            console.log('Real-time update:', newShare);
+            setShares(prev => {
+              // Avoid duplicates
+              if (prev.find(s => s.room_code === newShare.roomCode)) return prev;
+              const updated = [
+                {
+                  id: newShare.id,
+                  room_code: newShare.roomCode,
+                  type: newShare.type,
+                  file_name: newShare.file_name,
+                  file_size: newShare.file_size,
+                  file_type: newShare.file_type,
+                  content: newShare.content,
+                  expires_at: newShare.expires_at,
+                  created_at: newShare.created_at
+                },
+                ...prev
+              ];
+              setStatus('ready');
+              return updated;
+            });
+          },
+          onPresenceSync: (count: number) => {
+            setOnlineCount(count);
+          }
+        });
 
-        setNetworkId(netId);
-        await loadShares(netId);
-
-        pollRef.current = setInterval(() => {
-          if (!cancelled) loadShares(netId);
-        }, 4000);
-      } catch {
+        channelRef.current = channel;
+      } catch (err) {
+        console.error('Session initialization error:', err);
         if (!cancelled) setStatus('error');
       }
     }
 
     init();
+
     return () => {
       cancelled = true;
-      if (pollRef.current) clearInterval(pollRef.current);
+      if (channelRef.current) {
+        unsubscribeFromCluster(channelRef.current);
+      }
     };
-  }, [loadShares]);
+  }, []);
 
   const handleTextExpand = (roomCode: string) => {
     if (expandedText[roomCode] !== undefined) {
@@ -81,7 +99,6 @@ export default function NearbyPanel() {
       return;
     }
     
-    // With hydrated discovery, content is already in the share object
     const share = shares.find(s => s.room_code === roomCode);
     if (share?.type === 'text') {
       setExpandedText(prev => ({ ...prev, [roomCode]: share.content || '' }));
@@ -106,19 +123,20 @@ export default function NearbyPanel() {
         </div>
         
         <h3 className="np-state-title">
-          {status === 'loading' ? 'Initializing...' : 
-           status === 'error' ? 'Network Error' : 'Scanning WiFi...'}
+          {status === 'loading' ? 'Connecting...' : 
+           status === 'error' ? 'Connection Error' : 'Live Session Cluster'}
         </h3>
         
         <p className="np-state-sub">
-          {status === 'loading' ? 'Preparing secure discovery...' :
+          {status === 'loading' ? 'Joining real-time session...' :
            status === 'error' ? 'Unable to reach backend. Check your connection.' :
-           'Waiting for nearby shares to appear. No codes needed.'}
+           'Waiting for shares in this cluster. Content will appear instantly.'}
         </p>
 
         {status === 'empty' && (
-          <div className="np-scan-bar">
-            <div className="np-scan-fill" />
+          <div className="np-online-status">
+            <span className="np-online-dot" />
+            {onlineCount} {onlineCount === 1 ? 'user' : 'users'} active now
           </div>
         )}
 
@@ -132,11 +150,11 @@ export default function NearbyPanel() {
     <div className="np-list-wrap">
       <div className="np-toolbar">
         <div className="np-count-label">
-          <span className="np-count-num">{shares.length}</span> Active {shares.length === 1 ? 'Share' : 'Shares'}
+          <span className="np-count-num">{shares.length}</span> New Shares
         </div>
         <div className="np-live-badge">
           <span className="np-live-dot" />
-          LIVE
+          {onlineCount} ACTIVE
         </div>
       </div>
 
@@ -203,8 +221,8 @@ export default function NearbyPanel() {
       </div>
 
       <div className="np-footer-bar">
-        <span>Polling network...</span>
-        <span className="np-refresh-time">{secondsAgo(lastRefresh)}</span>
+        <span>Session Cluster: <span className="np-session-id">{clusterId}</span></span>
+        <span className="np-live-tag">REAL-TIME SYNC</span>
       </div>
 
       <NPStyles />
@@ -213,12 +231,6 @@ export default function NearbyPanel() {
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────
-
-function secondsAgo(ts: number) {
-  const s = Math.floor((Date.now() - ts) / 1000);
-  if (s < 2) return 'connected';
-  return `${s}s ago`;
-}
 
 function ExpiryLabel({ expiresAt }: { expiresAt: number }) {
   const [label, setLabel] = useState('');
@@ -290,6 +302,12 @@ function NPStyles() {
         line-height: 1.6; margin: 0; max-width: 240px;
       }
 
+      .np-online-status {
+        display: flex; align-items: center; gap: 8px;
+        margin-top: 12px; font-size: 12px; color: var(--text-muted);
+        font-weight: 600; font-family: 'JetBrains Mono', monospace;
+      }
+
       /* ── Pulse ring radar ── */
       .np-pulse-ring {
         position: relative;
@@ -320,24 +338,6 @@ function NPStyles() {
         0%   { opacity: 0;   transform: translate(-50%,-50%) scale(0.1); }
         20%  { opacity: 0.5; }
         100% { opacity: 0;   transform: translate(-50%,-50%) scale(1.2); }
-      }
-
-      /* ── Scanning bar ── */
-      .np-scan-bar {
-        width: 120px; height: 3px;
-        background: var(--surface2);
-        border-radius: 99px; overflow: hidden;
-        margin-top: 8px;
-      }
-      .np-scan-fill {
-        display: block; height: 100%; width: 40%;
-        background: linear-gradient(90deg, transparent, var(--accent), transparent);
-        animation: np-scan 1.5s ease-in-out infinite;
-        border-radius: 99px;
-      }
-      @keyframes np-scan {
-        0%   { transform: translateX(-100%); }
-        100% { transform: translateX(250%); }
       }
 
       /* ── Share list ── */
@@ -445,8 +445,8 @@ function NPStyles() {
         font-family: 'JetBrains Mono', monospace;
         padding: 0 4px;
       }
-      .np-refresh-time { color: var(--text-muted); font-weight: 600; }
+      .np-session-id { color: var(--text); font-weight: 800; text-transform: uppercase; }
+      .np-live-tag { color: var(--accent); font-weight: 800; letter-spacing: 0.1em; }
     `}</style>
   );
 }
-
