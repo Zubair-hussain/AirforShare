@@ -38,7 +38,8 @@ export async function storeShareMetadataSupabase(
     file_size?: number;
     file_size_original?: number;
     is_compressed?: boolean;
-    network_private?: boolean;
+    ip_hash: string;
+    room_id: string;
     expires_at: number;
     created_at: number;
   }

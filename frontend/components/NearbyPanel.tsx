@@ -18,7 +18,7 @@ interface NearbyShare {
 
 type Status = 'loading' | 'ready' | 'error' | 'empty';
 
-export default function NearbyPanel() {
+export default function NearbyPanel({ roomId }: { roomId: string }) {
   const [status, setStatus] = useState<Status>('loading');
   const [shares, setShares] = useState<NearbyShare[]>([]);
   const [clusterId, setClusterId] = useState<string | null>(null);
@@ -41,9 +41,9 @@ export default function NearbyPanel() {
            console.warn('NEXT_PUBLIC_API_URL is missing. Falling back to localhost:8788 for dev.');
         }
 
-        const targetUrl = apiUrl ? `${apiUrl}/room/session` : '/api/proxy/room/session'; // fallback or proxy
+        const targetUrl = apiUrl ? `${apiUrl}/room/session?roomId=${encodeURIComponent(roomId)}` : `/api/proxy/room/session?roomId=${encodeURIComponent(roomId)}`; // fallback or proxy
         
-        const res = await fetch(apiUrl ? `${apiUrl}/room/session` : '/room/session');
+        const res = await fetch(apiUrl ? `${apiUrl}/room/session?roomId=${encodeURIComponent(roomId)}` : `/room/session?roomId=${encodeURIComponent(roomId)}`);
         if (!res.ok) {
            console.error('Session fetch failed:', res.status);
            throw new Error('Failed to fetch session');
@@ -103,7 +103,7 @@ export default function NearbyPanel() {
         unsubscribeFromCluster(channelRef.current);
       }
     };
-  }, []);
+  }, [roomId]);
 
   const handleTextExpand = (roomCode: string) => {
     if (expandedText[roomCode] !== undefined) {
@@ -162,6 +162,10 @@ export default function NearbyPanel() {
   // ── Ready — share list ───────────────────────────────────────────────
   return (
     <div className="np-list-wrap">
+      <div className="np-warning-banner">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+        Anyone on your network can view shared content. Do not upload sensitive data.
+      </div>
       <div className="np-toolbar">
         <div className="np-count-label">
           <span className="np-count-num">{shares.length}</span> New Shares
@@ -361,6 +365,21 @@ function NPStyles() {
         display: flex; align-items: center; justify-content: space-between;
         margin-bottom: 18px;
         padding: 0 4px;
+      }
+      .np-warning-banner {
+        background: rgba(255, 181, 71, 0.1);
+        border: 1px solid rgba(255, 181, 71, 0.2);
+        color: var(--warning, #ffb547);
+        font-size: 11px;
+        padding: 8px 12px;
+        border-radius: var(--radius-sm);
+        margin-bottom: 12px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-weight: 500;
+        letter-spacing: 0.02em;
+        line-height: 1.4;
       }
       .np-count-label {
         font-size: 13px; color: var(--text-muted); font-weight: 500;

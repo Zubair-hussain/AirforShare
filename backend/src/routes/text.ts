@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { Env } from '../types';
-import { analyzeNetwork, getNetworkId } from '../utils/networkDetection';
+import { analyzeNetwork, getIpHash } from '../utils/networkDetection';
 import { initializeSupabase, storeShareMetadataSupabase } from '../utils/supabase';
 
 const text = new Hono<{ Bindings: Env }>();
@@ -22,7 +22,7 @@ text.post('/', async (c) => {
   try {
     const expiryMinutes = parseInt(c.env.ROOM_EXPIRY_MINUTES || '30');
 
-    let body: { content: string };
+    let body: { content: string; roomId?: string };
 
     try {
       body = await c.req.json();
@@ -40,7 +40,15 @@ text.post('/', async (c) => {
       return c.json({ error: 'Text content cannot be empty' }, 400);
     }
 
-    if (trimmed.length > MAX_TEXT_LENGTH) {
+    // Basic XSS Sanitation (Anti-Abuse)
+    const sanitized = trimmed
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+
+    if (sanitized.length > MAX_TEXT_LENGTH) {
       return c.json(
         { error: `Text too long. Maximum ${MAX_TEXT_LENGTH} characters allowed.` },
         413
@@ -49,7 +57,8 @@ text.post('/', async (c) => {
 
     // Analyze uploader's network
     const networkInfo = analyzeNetwork(c.req.raw.headers);
-    const networkPrivate = networkInfo.isLocalNetwork;
+    const ipHash = await getIpHash(c.req.raw.headers, c.env);
+    const roomId = body.roomId || 'public';
 
     // 🔥 Ensure fresh values every request
     const id = generateUniqueId();
@@ -61,16 +70,15 @@ text.post('/', async (c) => {
     // Save to D1
     await c.env.DB.prepare(
       `INSERT INTO shares 
-       (id, room_code, type, content, expires_at, created_at, network_private)
-       VALUES (?, ?, 'text', ?, ?, ?, ?)`
+       (id, room_code, type, content, ip_hash, room_id, expires_at, created_at)
+       VALUES (?, ?, 'text', ?, ?, ?, ?, ?)`
     )
-      .bind(id, roomCode, trimmed, expiresAt, now, 0)
+      .bind(id, roomCode, sanitized, ipHash, roomId, expiresAt, now)
       .run();
 
     // ── REAL-TIME BROADCAST ───────────────────────────────────────────
     const supabase = initializeSupabase(c.env);
-    const clusterId = (c.req.raw as any).cf?.colo || 'global-v1';
-    const channelName = `cluster-${clusterId.toLowerCase()}`;
+    const channelName = `cluster-${ipHash}-${roomId}`;
 
     if (supabase) {
       // Store in Supabase (Backup + Realtime trigger)
@@ -78,10 +86,11 @@ text.post('/', async (c) => {
         id,
         room_code: roomCode,
         type: 'text',
-        content: trimmed,
+        content: sanitized,
         expires_at: expiresAt,
         created_at: now,
-        network_private: false,
+        ip_hash: ipHash,
+        room_id: roomId,
       });
 
       // Explicit broadcast for instant UI update
@@ -93,7 +102,7 @@ text.post('/', async (c) => {
           id,
           roomCode,
           type: 'text',
-          content: trimmed,
+          content: sanitized,
           expires_at: expiresAt,
           created_at: now
         }

@@ -96,12 +96,28 @@ export function sameLocalNetwork(ip1: string, ip2: string): boolean {
 /**
  * Get a secure hash of the user's public IP
  * This is used for "Same WiFi" auto-discovery over the internet.
+ * Uses a daily salt to rotate hashes.
  */
 export async function getNetworkId(headers: Headers, env: Env): Promise<string> {
   const ip = getUserIp(headers);
   const today = new Date().toISOString().split('T')[0];
   const encoder = new TextEncoder();
   const data = encoder.encode(ip + (env.SUPABASE_ANON_KEY || 'salt') + today);
+  
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('').substring(0, 16);
+}
+
+/**
+ * Get a secure, stable hash of the user's public IP
+ * Used for persistent room assignment and grouping.
+ */
+export async function getIpHash(headers: Headers, env: Env): Promise<string> {
+  const ip = getUserIp(headers);
+  const encoder = new TextEncoder();
+  const salt = env.SUPABASE_ANON_KEY || 'stable-salt';
+  const data = encoder.encode(ip + salt);
   
   const hashBuffer = await crypto.subtle.digest('SHA-256', data);
   const hashArray = Array.from(new Uint8Array(hashBuffer));

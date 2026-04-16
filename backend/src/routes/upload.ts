@@ -2,14 +2,14 @@ import { Hono } from 'hono';
 import { Env, Share } from '../types';
 import { generateId, generateRoomCode } from '../utils/roomCode';
 import { compressData, shouldCompress } from '../utils/compression';
-import { analyzeNetwork, getNetworkId } from '../utils/networkDetection';
+import { analyzeNetwork, getIpHash } from '../utils/networkDetection';
 import { initializeSupabase, storeShareMetadataSupabase } from '../utils/supabase';
 
 const upload = new Hono<{ Bindings: Env }>();
 
 upload.post('/', async (c) => {
   try {
-    const maxSize = parseInt(c.env.MAX_FILE_SIZE || '52428800');
+    const maxSize = parseInt(c.env.MAX_FILE_SIZE || '10485760'); // Default 10MB
     const compressionThreshold = parseInt(c.env.COMPRESSION_THRESHOLD || '104857600');
     const expiryMinutes = parseInt(c.env.ROOM_EXPIRY_MINUTES || '30');
 
@@ -20,6 +20,10 @@ upload.post('/', async (c) => {
       return c.json({ error: 'No file provided' }, 400);
     }
 
+    if (file.size === 0) {
+      return c.json({ error: 'File is empty. Cannot upload.' }, 400);
+    }
+
     if (file.size > maxSize) {
       return c.json(
         { error: `File too large. Maximum size is ${maxSize / 1024 / 1024}MB` },
@@ -27,11 +31,10 @@ upload.post('/', async (c) => {
       );
     }
 
-    // Analyze uploader's network — stored as metadata, NOT used to restrict access
-    // Via ngrok: isLocalNetwork will be false (public IP) — this is expected
-    // Via direct LAN: isLocalNetwork will be true
+    // Analyze uploader's network
     const networkInfo = analyzeNetwork(c.req.raw.headers);
-    const networkPrivate = networkInfo.isLocalNetwork;
+    const ipHash = await getIpHash(c.req.raw.headers, c.env);
+    const roomId = formData.get('roomId') as string || 'public';
 
     // Generate unique identifiers
     const id = generateId();
@@ -81,9 +84,9 @@ upload.post('/', async (c) => {
       INSERT INTO shares (
         id, room_code, type, file_key, file_name,
         file_size, file_size_original, file_type,
-        is_compressed, expires_at, created_at, network_private
+        is_compressed, ip_hash, room_id, expires_at, created_at
       )
-      VALUES (?, ?, 'file', ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, 'file', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `)
       .bind(
         id,
@@ -94,17 +97,16 @@ upload.post('/', async (c) => {
         fileSizeOriginal,
         file.type,
         isCompressed ? 1 : 0,
+        ipHash,
+        roomId,
         expiresAt,
-        now,
-        0 // network_private no longer used for discovery
+        now
       )
       .run();
 
     // ── REAL-TIME BROADCAST ───────────────────────────────────────────
-    // Notify all clients in the same regional cluster instantly
     const supabase = initializeSupabase(c.env);
-    const clusterId = (c.req.raw as any).cf?.colo || 'global-v1';
-    const channelName = `cluster-${clusterId.toLowerCase()}`;
+    const channelName = `cluster-${ipHash}-${roomId}`;
 
     if (supabase) {
       // Store in Supabase (Backup + Realtime trigger)
@@ -118,7 +120,8 @@ upload.post('/', async (c) => {
         is_compressed: isCompressed,
         expires_at: expiresAt,
         created_at: now,
-        network_private: false,
+        ip_hash: ipHash,
+        room_id: roomId,
       });
 
       // Explicit broadcast for instant UI update (faster than DB polling)

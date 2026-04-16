@@ -39,8 +39,9 @@ CREATE TABLE IF NOT EXISTS shares (
   -- Compression
   is_compressed       BOOLEAN DEFAULT false,
   
-  -- Network access
-  network_private     BOOLEAN DEFAULT false,
+  -- Network grouping
+  ip_hash             TEXT NOT NULL,
+  room_id             TEXT DEFAULT 'public',
   
   -- Timestamps (UTC)
   expires_at          BIGINT NOT NULL,
@@ -51,7 +52,8 @@ CREATE TABLE IF NOT EXISTS shares (
 -- Indexes
 CREATE INDEX idx_room_code ON shares(room_code);
 CREATE INDEX idx_expires_at ON shares(expires_at);
-CREATE INDEX idx_network_private ON shares(network_private);
+CREATE INDEX idx_ip_hash ON shares(ip_hash);
+CREATE INDEX idx_room_id ON shares(room_id);
 CREATE INDEX idx_created_at ON shares(created_at);
 CREATE INDEX idx_type ON shares(type);
 

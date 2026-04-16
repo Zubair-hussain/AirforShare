@@ -1,14 +1,25 @@
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
-// ── Get Cluster Session Logic ─────────────────────────────────────────
-export async function getClusterSession(): Promise<{ sessionId: string } | null> {
+export async function getClusterSession(roomId: string = 'public'): Promise<{ sessionId: string } | null> {
   try {
-    const res = await fetch(`${API_URL}/room/session`);
+    const res = await fetch(`${API_URL}/room/session?roomId=${encodeURIComponent(roomId)}`);
     if (!res.ok) return null;
     return await res.json();
   } catch (err) {
     console.error('Failed to fetch cluster session:', err);
     return null;
+  }
+}
+
+export async function fetchActiveShares(roomId: string = 'public'): Promise<ShareInfo[]> {
+  try {
+    const res = await fetch(`${API_URL}/room/shares?roomId=${encodeURIComponent(roomId)}`);
+    if (!res.ok) return [];
+    const data = await res.json();
+    return data.shares || [];
+  } catch (err) {
+    console.error('Failed to fetch active shares:', err);
+    return [];
   }
 }
 
@@ -51,16 +62,17 @@ export interface TextShareResult {
   expiresAt: number;
 }
 
-// ── Upload a file (with optional Turnstile token) ───────────────────
 export async function uploadFile(
   file: File,
   onProgress?: (percent: number) => void,
+  roomId: string = 'public',
   turnstileToken?: string
 ): Promise<UploadResult> {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     const formData = new FormData();
     formData.append('file', file);
+    formData.append('roomId', roomId);
 
     // Attach Turnstile token if provided
     if (turnstileToken) {
@@ -101,6 +113,7 @@ export async function uploadFile(
 // ── Share text / link (with optional Turnstile token) ───────────────
 export async function shareText(
   content: string,
+  roomId: string = 'public',
   turnstileToken?: string
 ): Promise<TextShareResult> {
   const res = await fetch(`${API_URL}/text`, {
@@ -108,6 +121,7 @@ export async function shareText(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       content,
+      roomId,
       ...(turnstileToken ? { 'cf-turnstile-response': turnstileToken } : {}),
     }),
   });

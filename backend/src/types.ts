@@ -26,7 +26,8 @@ export interface Share {
   is_compressed?: boolean;
   expires_at: number;
   created_at: number;
-  network_private?: boolean; // True if available only on same network
+  ip_hash: string;
+  room_id: string;
 }
 
 export interface NetworkInfo {

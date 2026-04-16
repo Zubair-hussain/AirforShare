@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { shareText } from '../lib/api';
 
-export default function TextShare() {
+export default function TextShare({ roomId }: { roomId: string }) {
   const [content, setContent] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -19,7 +19,7 @@ export default function TextShare() {
     setError('');
 
     try {
-      const res = await shareText(content.trim());
+      const res = await shareText(content.trim(), roomId);
 
       try {
         const sharePayload = {

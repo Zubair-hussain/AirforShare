@@ -7,7 +7,7 @@ import dynamic from 'next/dynamic';
 // Load Turnstile only on client — never SSR (prevents hydration errors 418/423/425)
 const Turnstile = dynamic(() => import('./Turnstile'), { ssr: false });
 
-const MAX_SIZE = 50 * 1024 * 1024; // 50MB
+const MAX_SIZE = 10 * 1024 * 1024; // 10MB
 
 // Set your Turnstile site key in .env.local:
 // NEXT_PUBLIC_TURNSTILE_SITE_KEY=your_key_here
@@ -15,7 +15,7 @@ const MAX_SIZE = 50 * 1024 * 1024; // 50MB
 const TURNSTILE_SITE_KEY =
   process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || '1x00000000000000000000AA';
 
-export default function FileUploader() {
+export default function FileUploader({ roomId }: { roomId: string }) {
   const [dragging, setDragging] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [progress, setProgress] = useState(0);
@@ -46,8 +46,12 @@ export default function FileUploader() {
   const validateAndSet = (f: File) => {
     setError('');
     setUploadResult(null);
+    if (f.size === 0) {
+      setError(`File is empty. Please select a valid file.`);
+      return;
+    }
     if (f.size > MAX_SIZE) {
-      setError(`File too large. Maximum size is 50MB. Your file: ${formatFileSize(f.size)}`);
+      setError(`File too large. Maximum size is 10MB. Your file: ${formatFileSize(f.size)}`);
       return;
     }
     setFile(f);
@@ -67,7 +71,7 @@ export default function FileUploader() {
     setError('');
 
     try {
-      const res: UploadResult = await uploadFile(file, setProgress, turnstileToken);
+      const res: UploadResult = await uploadFile(file, setProgress, roomId, turnstileToken);
       setUploadResult(res);
 
       // ── LOCAL STORAGE FALLBACK ──────────────────────────────────────
@@ -162,7 +166,7 @@ export default function FileUploader() {
               </div>
               <p className="drop-text">Drop your file here</p>
               <p className="drop-sub">
-                or <span className="drop-browse">browse files</span> · max 50MB
+                or <span className="drop-browse">browse files</span> · max 10MB
               </p>
             </div>
           )}

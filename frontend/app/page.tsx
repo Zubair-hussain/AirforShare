@@ -11,6 +11,11 @@ type Tab = 'file' | 'text';
 
 export default function HomePage() {
   const [tab, setTab] = useState<Tab>('file');
+  const [activeRoom, setActiveRoom] = useState<string>('public');
+
+  const setPrivateRoom = () => {
+    setActiveRoom(Math.random().toString(36).substring(2, 8));
+  };
 
   return (
     <main className="page">
@@ -56,6 +61,25 @@ export default function HomePage() {
         </p>
       </header>
 
+      {/* ── Room Selector ──────────────────────────────────────────── */}
+      <div className="room-selector animate-up" style={{ animationDelay: '40ms' }}>
+        <div className="room-status">
+          <span className={`room-dot ${activeRoom === 'public' ? 'public' : 'private'}`} />
+          <span className="room-label">
+            {activeRoom === 'public' ? 'Public Room (Default)' : 'Private Room:'}
+          </span>
+          {activeRoom !== 'public' && (
+            <span className="room-code mono">{activeRoom}</span>
+          )}
+        </div>
+        <button 
+          className="btn-room-switch"
+          onClick={() => activeRoom === 'public' ? setPrivateRoom() : setActiveRoom('public')}
+        >
+          {activeRoom === 'public' ? 'Create Private Room' : 'Switch to Public'}
+        </button>
+      </div>
+
       {/* ── Main Action Grid ─────────────────────────────────────── */}
       <div className="main-grid animate-in" style={{ animationDelay: '80ms' }}>
         {/* Left Panel: Send */}
@@ -95,7 +119,7 @@ export default function HomePage() {
             </div>
 
             <div key={tab} className="tab-content animate-in">
-              {tab === 'file' ? <FileUploader /> : <TextShare />}
+              {tab === 'file' ? <FileUploader roomId={activeRoom} /> : <TextShare roomId={activeRoom} />}
             </div>
           </div>
         </section>
@@ -107,7 +131,7 @@ export default function HomePage() {
             <span className="panel-label">Nearby Devices</span>
           </div>
           <div className="panel discovery-card">
-            <NearbyPanel />
+            <NearbyPanel roomId={activeRoom} />
           </div>
         </section>
       </div>
@@ -262,6 +286,46 @@ export default function HomePage() {
           flex-direction: column;
           gap: 12px;
           width: 100%;
+        }
+        
+        /* ── Room Selector ── */
+        .room-selector {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          max-width: 1080px;
+          margin: 0 auto 24px auto;
+          padding: 12px 20px;
+          background: rgba(255,255,255,0.02);
+          border: 1px solid var(--border);
+          border-radius: var(--radius);
+          backdrop-filter: blur(8px);
+        }
+        .room-status {
+          display: flex; align-items: center; gap: 10px;
+        }
+        .room-dot {
+          width: 8px; height: 8px; border-radius: 50%;
+        }
+        .room-dot.public { background: var(--accent); box-shadow: 0 0 10px var(--accent); }
+        .room-dot.private { background: #ff4d6a; box-shadow: 0 0 10px #ff4d6a; }
+        .room-label { font-size: 13px; font-weight: 600; color: var(--text-muted); }
+        .room-code { 
+          background: var(--surface2); padding: 4px 8px; border-radius: 6px; 
+          font-size: 12px; font-weight: 800; color: var(--text); border: 1px solid var(--border);
+        }
+        .btn-room-switch {
+          font-size: 12px; font-weight: 600;
+          padding: 6px 14px; background: transparent;
+          border: 1px solid var(--border); color: var(--text);
+          border-radius: 6px; cursor: pointer; transition: all 0.2s;
+        }
+        .btn-room-switch:hover {
+          background: rgba(255,255,255,0.05); color: white;
+        }
+        @media (max-width: 600px) {
+          .room-selector { flex-direction: column; gap: 12px; align-items: stretch; text-align: center; }
+          .room-status { justify-content: center; }
         }
         .panel-header-simple {
           display: flex;

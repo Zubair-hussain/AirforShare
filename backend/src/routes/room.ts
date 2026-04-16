@@ -1,22 +1,38 @@
 import { Hono } from 'hono';
 import { Env, Share } from '../types';
+import { getIpHash } from '../utils/networkDetection';
 
 const room = new Hono<{ Bindings: Env }>();
 
 /**
  * GET /room/session — Logical Cluster Grouping
- * Instead of IP/Geo discovery, we place users into a stable "Live Session Cluster".
+ * Generates an IP hash session for Real-time scoping
  */
 room.get('/session', async (c) => {
-  // Use the datacenter (colo) as a stable regional cluster identifier
-  // Fallback to "global" if missing
-  const clusterId = (c.req.raw as any).cf?.colo || 'global-v1';
+  const ipHash = await getIpHash(c.req.raw.headers, c.env);
+  const roomId = c.req.query('roomId') || 'public';
   
   return c.json({
-    sessionId: `cluster-${clusterId.toLowerCase()}`,
+    sessionId: `cluster-${ipHash}-${roomId}`,
     status: 'connected',
-    method: 'logical-cluster'
+    method: 'ip-hash'
   });
+});
+
+// GET /room/shares — get all active shares for current IP Hash and Room
+room.get('/shares', async (c) => {
+  const ipHash = await getIpHash(c.req.raw.headers, c.env);
+  const roomId = c.req.query('roomId') || 'public';
+  const now = Date.now();
+  const timeLimit = now - (30 * 60 * 1000); // Enforce server-side 30m constraint
+
+  const { results } = await c.env.DB.prepare(
+    'SELECT * FROM shares WHERE ip_hash = ? AND room_id = ? AND expires_at > ? AND created_at > ? ORDER BY created_at DESC'
+  )
+    .bind(ipHash, roomId, now, timeLimit)
+    .all<Share>();
+
+  return c.json({ shares: results || [] });
 });
 
 // GET /room/:roomCode — get share metadata

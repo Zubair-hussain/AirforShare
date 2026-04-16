@@ -12,14 +12,16 @@ CREATE TABLE IF NOT EXISTS shares (
   file_size_original  INTEGER,
   file_type           TEXT,
   is_compressed       INTEGER DEFAULT 0,
-  network_private     INTEGER DEFAULT 0,
+  ip_hash             TEXT NOT NULL,
+  room_id             TEXT DEFAULT 'public',
   expires_at          INTEGER NOT NULL,
   created_at          INTEGER NOT NULL
 );
 
 CREATE INDEX IF NOT EXISTS idx_room_code ON shares(room_code);
 CREATE INDEX IF NOT EXISTS idx_expires_at ON shares(expires_at);
-CREATE INDEX IF NOT EXISTS idx_network_private ON shares(network_private);
+CREATE INDEX IF NOT EXISTS idx_ip_hash ON shares(ip_hash);
+CREATE INDEX IF NOT EXISTS idx_room_id ON shares(room_id);
 CREATE INDEX IF NOT EXISTS idx_created_at ON shares(created_at);
 
 -- LAN DISCOVERY TABLE
